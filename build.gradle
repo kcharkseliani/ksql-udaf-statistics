@@ -1,21 +1,12 @@
-buildscript {
-    repositories {
-        jcenter()
-    }
-}
-
 plugins {
     id "java"
-    id "com.github.johnrengelman.shadow" version "6.0.0"
+    id "com.github.johnrengelman.shadow" version "8.1.1" // Use the latest Shadow plugin version
 }
 
-sourceCompatibility = "21"
-targetCompatibility = "21"
 version = "0.1.0"
 
 repositories {
     mavenCentral()
-    jcenter()
 
     maven {
         url "https://packages.confluent.io/maven"
@@ -23,20 +14,23 @@ repositories {
 }
 
 dependencies {
-    implementation "io.confluent.ksql:ksqldb-udf:|release|"
-    implementation "org.apache.kafka:kafka_2.13:2.5.0"
-    implementation "org.apache.kafka:connect-api:2.5.0"
+    implementation "io.confluent.ksql:ksqldb-udf:7.3.1"
+    implementation "org.apache.kafka:kafka_2.13:3.3.1"
+    implementation "org.apache.kafka:connect-api:3.3.1"
 }
 
-apply plugin: "com.github.johnrengelman.shadow"
-apply plugin: "java"
-
-compileJava {
-    options.compilerArgs << "-parameters"
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(23)
+    }
 }
 
 shadowJar {
     archiveBaseName = "ksql-udaf-statistics"
     archiveClassifier = ""
     destinationDirectory = file("extensions")
+}
+
+compileJava {
+    options.compilerArgs << "-parameters"
 }
