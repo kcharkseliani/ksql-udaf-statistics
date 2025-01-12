@@ -1,6 +1,6 @@
 plugins {
     id "java"
-    id "com.github.johnrengelman.shadow" version "8.1.1" // Use the latest Shadow plugin version
+    id "com.github.johnrengelman.shadow" version "8.1.1"
 }
 
 version = "0.1.0"
@@ -18,6 +18,14 @@ dependencies {
     implementation "io.confluent.ksql:ksqldb-common:7.3.1"
     implementation "org.apache.kafka:kafka_2.13:3.3.1"
     implementation "org.apache.kafka:connect-api:3.3.1"
+
+    // JUnit 5 (Jupiter) for unit testing
+    testImplementation "org.junit.jupiter:junit-jupiter-api:5.9.2"
+    testImplementation "org.junit.jupiter:junit-jupiter-engine:5.9.2"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.9.2"
+
+    // Mockito for mocking dependencies in tests
+    testImplementation "org.mockito:mockito-core:5.14.0"
 }
 
 java {
@@ -34,4 +42,9 @@ shadowJar {
 
 compileJava {
     options.compilerArgs << "-parameters"
+}
+
+test {
+    // Enables JUnit 5 testing
+    useJUnitPlatform()
 }
