@@ -37,7 +37,7 @@ jobs:
     - name: Install GitVersion
       uses: gittools/actions/gitversion/setup@v3.0.3
       with:
-        versionSpec: '6.x'
+        versionSpec: '6.0.5'
 
     # Step 4: Run GitVersion to determine the version
     - name: Determine version with GitVersion
@@ -55,12 +55,18 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    # Step 5.1: Re-run GitVersion to update version after tagging
+    - name: Re-run GitVersion to update version
+      if: github.ref == 'refs/heads/main'
+      uses: gittools/actions/gitversion/execute@v3.0.3
+      id: gitversion
+
     # Step 6: Set version and build the project using shadowJar
     - name: Display Version
       run: echo "Version ${{ steps.gitversion.outputs.semVer }}"
 
     - name: Build shadowJar with version
-      run: gradle shadowJar -PbuildVersion="'${{ steps.gitversion.outputs.semVer }}'"
+      run: gradle shadowJar -PbuildVersion='${{ steps.gitversion.outputs.semVer }}'
 
     # Step 7: Tag the commit with the version
     - name: Tag the commit with version
