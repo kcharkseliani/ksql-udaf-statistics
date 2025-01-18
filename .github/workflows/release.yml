@@ -60,7 +60,7 @@ jobs:
       run: echo "Version ${{ steps.gitversion.outputs.semVer }}"
 
     - name: Build shadowJar with version
-      run: gradle shadowJar -PbuildVersion="'${{ steps.gitversion.outputs.semVer }}'"
+      run: gradle shadowJar -PbuildVersion='${{ steps.gitversion.outputs.semVer }}'
 
     # Step 7: Tag the commit with the version
     - name: Tag the commit with version
