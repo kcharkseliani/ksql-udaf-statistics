@@ -55,6 +55,12 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    # Step 5.1: Re-run GitVersion to update version after tagging
+    - name: Re-run GitVersion to update version
+      if: github.ref == 'refs/heads/main'
+      uses: gittools/actions/gitversion/execute@v3.0.3
+      id: gitversion
+
     # Step 6: Set version and build the project using shadowJar
     - name: Display Version
       run: echo "Version ${{ steps.gitversion.outputs.semVer }}"
