@@ -39,24 +39,24 @@ jobs:
       with:
         versionSpec: '6.0.5'
 
-    # Step 4: Run GitVersion to determine the version
-    - name: Determine version with GitVersion
-      id: gitversion
+    # Step 4: Run GitVersion to determine the majorMinorPatch, then tag if the branch is `main`
+    - name: Get majorMinorPatch version with GitVersion before tagging on main
+      if: github.ref == 'refs/heads/main'
+      id: gitversion_main
       uses: gittools/actions/gitversion/execute@v3.0.3
 
-    # Step 5: Tag immediately if the branch is `main`
     - name: Tag main branch immediately
       if: github.ref == 'refs/heads/main'
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
-        git tag -a ${{ steps.gitversion.outputs.majorMinorPatch }} -m "Stable Release ${{ steps.gitversion.outputs.majorMinorPatch }}"
-        git push origin ${{ steps.gitversion.outputs.majorMinorPatch }}
+        git tag -a ${{ steps.gitversion_main.outputs.majorMinorPatch }} -m "Stable Release ${{ steps.gitversion_main.outputs.majorMinorPatch }}"
+        git push origin ${{ steps.gitversion_main.outputs.majorMinorPatch }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Step 5.1: Re-run GitVersion to update version after tagging
-    - name: Re-run GitVersion to update version
+    # Step 5: Run GitVersion to determine version (updated after tagging if first got version with main from Step 4)
+    - name: Determine version with GitVersion
       if: github.ref == 'refs/heads/main'
       uses: gittools/actions/gitversion/execute@v3.0.3
       id: gitversion
