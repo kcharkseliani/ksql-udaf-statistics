@@ -57,7 +57,6 @@ jobs:
 
     # Step 5: Run GitVersion to determine version (updated after tagging if first got version with main from Step 4)
     - name: Determine version with GitVersion
-      if: github.ref == 'refs/heads/main'
       uses: gittools/actions/gitversion/execute@v3.0.3
       id: gitversion
 
