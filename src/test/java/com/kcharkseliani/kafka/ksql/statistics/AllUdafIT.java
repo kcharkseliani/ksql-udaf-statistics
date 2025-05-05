@@ -2,6 +2,7 @@ package com.kcharkseliani.kafka.ksql.statistics;
 
 import org.junit.jupiter.api.*;
 import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -12,10 +13,20 @@ public class AllUdafIT {
     static KafkaContainer kafka;
     static GenericContainer<?> ksqldb;
 
-    static Network network = Network.newNetwork();
+    static Network network;
 
     @BeforeAll
-    static void startContainers() {
+    static void setUp() {
+
+        boolean dockerAvailable = DockerClientFactory.instance().isDockerAvailable();
+        System.out.println("Testcontainers Docker available: " + dockerAvailable);
+
+        if (!dockerAvailable) {
+            throw new IllegalStateException("Docker is not available. Integration tests require Docker.");
+        }
+
+        network = Network.newNetwork();
+        
         kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.8.0"))
         .withNetwork(network)
         .withNetworkAliases("kafka")
@@ -41,7 +52,7 @@ public class AllUdafIT {
     }
 
     @AfterAll
-    static void stopContainers() {
+    static void tearDown() {
         ksqldb.stop();
         kafka.stop();
     }
