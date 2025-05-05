@@ -14,6 +14,7 @@ repositories {
 }
 
 dependencies {
+    // Core ksqlDB UDAF and Kafka dependencies
     implementation "io.confluent.ksql:ksqldb-udf:7.3.1"
     implementation "io.confluent.ksql:ksqldb-common:7.3.1"
     implementation "org.apache.kafka:kafka_2.13:3.3.1"
@@ -26,6 +27,11 @@ dependencies {
 
     // Mockito for mocking dependencies in tests
     testImplementation "org.mockito:mockito-core:5.14.0"
+    
+    // Testcontainers for integration testing (core, kafka-specific and JUnit Jupiter integration)
+    testImplementation "org.testcontainers:testcontainers:1.19.1"
+    testImplementation "org.testcontainers:kafka:1.19.1"
+    testImplementation "org.testcontainers:junit-jupiter:1.19.1"
 }
 
 java {
@@ -47,4 +53,25 @@ compileJava {
 test {
     // Enables JUnit 5 testing
     useJUnitPlatform()
+    exclude '**/*IT.class' // Don't run integration tests here
+}
+
+tasks.named('shadowJar') {
+    mustRunAfter check
+}
+
+task integrationTest(type: Test) {
+    description = "Runs integration tests"
+    group = "verification"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*IT.class' // Only run files like AllUdaIT
+    mustRunAfter shadowJar
+    useJUnitPlatform()
+}
+
+task verify {
+    group = "verification"
+    description = "Runs unit tests, builds the uber-JAR, and then runs integration tests"
+    dependsOn 'check', 'shadowJar', 'integrationTest'
 }
