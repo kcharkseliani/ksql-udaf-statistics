@@ -54,6 +54,11 @@ test {
     // Enables JUnit 5 testing
     useJUnitPlatform()
     exclude '**/*IT.class' // Don't run integration tests here
+
+    testLogging {
+        showStandardStreams = true
+        events "passed", "skipped", "failed", "standard_out", "standard_error"
+    }
 }
 
 tasks.named('shadowJar') {
@@ -68,6 +73,11 @@ task integrationTest(type: Test) {
     include '**/*IT.class' // Only run files like AllUdaIT
     mustRunAfter shadowJar
     useJUnitPlatform()
+
+    testLogging {
+        showStandardStreams = true
+        events "passed", "skipped", "failed", "standard_out", "standard_error"
+    }
 }
 
 task verify {
