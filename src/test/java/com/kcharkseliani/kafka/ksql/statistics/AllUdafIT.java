@@ -1,6 +1,21 @@
 package com.kcharkseliani.kafka.ksql.statistics;
 
+import com.kcharkseliani.kafka.ksql.statistics.util.UdafMetadata;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.*;
+
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.BindMode;
@@ -47,8 +62,40 @@ public class AllUdafIT {
     }
 
     @Test
-    void testKsqlWithCustomUdaf() throws Exception {
-        throw new UnsupportedOperationException("Method testKsqlWithCustomUdaf not implemented");
+    void testDeployment_shouldContainAllDeclaredUdafs() throws Exception {
+        Set<String> expectedFunctionNames = UdafMetadata.getDeclaredUdafNames();
+        System.out.println("Expected UDAF names from annotations: " + expectedFunctionNames);
+
+        // Query ksqlDB for actual functions
+        String host = ksqldb.getHost();
+        int port = ksqldb.getMappedPort(8088);
+
+        String payload = "{\n" +
+            "  \"ksql\": \"SHOW FUNCTIONS;\",\n" +
+            "  \"streamsProperties\": {}\n" +
+            "}";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://" + host + ":" + port + "/ksql"))
+                .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(response.body());
+
+        Set<String> actualFunctionNames = StreamSupport.stream(root.spliterator(), false)
+                .flatMap(node -> StreamSupport.stream(node.path("functions").spliterator(), false))
+                .map(fn -> fn.path("name").asText().toLowerCase())
+                .collect(Collectors.toSet());
+
+        for (String expected : expectedFunctionNames) {
+            Assertions.assertTrue(actualFunctionNames.contains(expected),
+                "Missing UDAF in ksqlDB: " + expected);
+        }
     }
 
     @AfterAll

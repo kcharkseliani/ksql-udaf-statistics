@@ -32,6 +32,9 @@ dependencies {
     testImplementation "org.testcontainers:testcontainers:1.19.1"
     testImplementation "org.testcontainers:kafka:1.19.1"
     testImplementation "org.testcontainers:junit-jupiter:1.19.1"
+    
+    // Reflection for integration testing to get UDAF names from class annotations
+    testImplementation "org.reflections:reflections:0.10.2"
 }
 
 java {
