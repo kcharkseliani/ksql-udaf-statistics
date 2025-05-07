@@ -67,6 +67,7 @@ public class AllUdafIT {
 
     @Test
     void testDeployment_shouldContainAllDeclaredUdafs() throws Exception {
+
         Set<String> expectedFunctionNames = UdafMetadata.getDeclaredUdafNames();
         System.out.println("Expected UDAF names from annotations: " + expectedFunctionNames);
 
@@ -104,17 +105,10 @@ public class AllUdafIT {
 
     @Test
     void testStddevWeighted_RecordsInserted_ShouldAggregateAll() throws Exception {
-        String host = ksqldb.getHost();
-        int port = ksqldb.getMappedPort(8088);
-        String baseUrl = "http://" + host + ":" + port + "/ksql";
 
-        HttpClient client = HttpClient.newHttpClient();
-
-        // === Input test data ===
         double[] values = {5.0, 2.0, 8.0};
         double[] weights = {2.0, 4.0, 1.0};
 
-        // === Expected weighted stddev computation ===
         double weightedSum = 0.0, weightedSumSquares = 0.0, sumWeights = 0.0;
         for (int i = 0; i < values.length; i++) {
             weightedSum += values[i] * weights[i];
@@ -123,14 +117,30 @@ public class AllUdafIT {
         }
         double mean = weightedSum / sumWeights;
         double variance = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
-        double expectedStdDev = Math.sqrt(Math.max(variance, 0.0));
+        double expected = Math.sqrt(Math.max(variance, 0.0));
 
+        runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
+    }
+
+    @AfterAll
+    static void tearDown() {
+        ksqldb.stop();
+        kafka.stop();
+    }
+
+    private void runWeightedAggregationTest(double[] values, double[] weights, double expectedValue, String functionName) throws Exception {
+        String host = ksqldb.getHost();
+        int port = ksqldb.getMappedPort(8088);
+        String baseUrl = "http://" + host + ":" + port + "/ksql";
+    
+        HttpClient client = HttpClient.newHttpClient();
+    
         // === 1. Create stream ===
         String createStream =
             "{ \"ksql\": \"CREATE STREAM weighted_input (val DOUBLE, weight DOUBLE) " +
             "WITH (kafka_topic='weighted_input', value_format='json', partitions=1);\", " +
             "\"streamsProperties\":{} }";
-
+    
         HttpResponse<String> streamResponse = client.send(
             HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl))
@@ -139,51 +149,52 @@ public class AllUdafIT {
                 .build(),
             HttpResponse.BodyHandlers.ofString()
         );
-
+    
         if (streamResponse.statusCode() != 200) {
             throw new IllegalStateException("Failed to create stream: " + streamResponse.body());
-        }      
-
-        // === 2. Create table with aggregation using STDDEV_WEIGHTED ===
+        }
+    
         // Sleep to wait for stream creation to complete
         Thread.sleep(2_000);
-        String createTableWithSingletonKey =
-            "{ \"ksql\": \"CREATE TABLE stddev_result WITH (" +
-            "KAFKA_TOPIC='stddev_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
-            "SELECT 'singleton' AS id, STDDEV_WEIGHTED(val, weight) AS stddev " +
+    
+        // === 2. Create table with aggregation using specified UDAF ===
+        String createTable =
+            "{ \"ksql\": \"CREATE TABLE aggregated_result WITH (" +
+            "KAFKA_TOPIC='aggregated_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
+            "SELECT 'singleton' AS id, " + functionName + "(val, weight) AS result " +
             "FROM weighted_input " +
             "GROUP BY 'singleton' EMIT CHANGES;\"," +
             " \"streamsProperties\": {} }";
-
+    
         HttpResponse<String> tableResponse = client.send(
             HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl))
                 .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(createTableWithSingletonKey))
+                .POST(HttpRequest.BodyPublishers.ofString(createTable))
                 .build(),
             HttpResponse.BodyHandlers.ofString()
         );
-
-        Assertions.assertEquals(200, tableResponse.statusCode(), 
+    
+        Assertions.assertEquals(200, tableResponse.statusCode(),
             "Failed to create the table with the UDAF result: " + tableResponse.body());
-
-        // === 3. Insert test data ===
+    
         // Sleep to wait for table creation to complete
-        Thread.sleep(2_000);
-        
+        Thread.sleep(5_000);
+    
+        // === 3. Insert data ===
         // Build INSERT statements dynamically
         StringBuilder insertStatements = new StringBuilder();
         for (int i = 0; i < values.length; i++) {
             insertStatements.append("INSERT INTO weighted_input (val, weight) VALUES (")
                             .append(values[i]).append(", ").append(weights[i]).append("); ");
         }
-
+    
         // Build the final JSON string
         String insertData = "{\n" +
             "  \"ksql\": \"" + insertStatements.toString().trim() + "\",\n" +
             "  \"streamsProperties\": {}\n" +
             "}";
-
+    
         HttpResponse<String> insertResponse = client.send(
             HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl))
@@ -192,18 +203,17 @@ public class AllUdafIT {
                 .build(),
             HttpResponse.BodyHandlers.ofString()
         );
-
+    
         if (insertResponse.statusCode() != 200) {
             throw new IllegalStateException("Failed to insert test data: " + insertResponse.body());
         }
-
-        // === 4. Query table result ===
+    
         // Sleep to wait for data to finish inserting
-        Thread.sleep(2_000);
-
-        String pullQuery =
-        "{ \"ksql\": \"SELECT * FROM stddev_result WHERE id = 'singleton';\", " +
-        "\"streamsProperties\": {} }";
+        Thread.sleep(5_000);
+    
+        // === 4. Query and validate result ===
+        String pullQuery = "{ \"ksql\": \"SELECT * FROM aggregated_result WHERE id = 'singleton';\", " +
+            "\"streamsProperties\": {} }";
     
         HttpResponse<String> queryResponse = client.send(
             HttpRequest.newBuilder()
@@ -216,25 +226,12 @@ public class AllUdafIT {
     
         Assertions.assertEquals(200, queryResponse.statusCode(), 
             "Pull query to extract UDAF result failed: " + queryResponse.body());
-
-        // === 5. Extract and compare value ===
-        String body = queryResponse.body();
-
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode root = mapper.readTree(body);
-
-        // The second element of the array contains the actual row with results
-        JsonNode rowNode = root.get(1).path("row").path("columns");
-
-        // Get the standard deviation (second column)
-        double actualStdDev = rowNode.get(1).asDouble();
-
-        Assertions.assertEquals(expectedStdDev, actualStdDev, 0.0001);
-    }
-
-    @AfterAll
-    static void tearDown() {
-        ksqldb.stop();
-        kafka.stop();
+    
+        JsonNode root = new ObjectMapper().readTree(queryResponse.body());       
+        JsonNode resultValue = root.get(1).path("row").path("columns").get(1);
+        double actual = resultValue.asDouble();
+    
+        Assertions.assertEquals(expectedValue, actual, 0.0001,
+            "Expected " + expectedValue + " but got " + actual);
     }
 }
