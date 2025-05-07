@@ -96,6 +96,11 @@ public class WeightedSkewnessUdaf {
             // Calculating the weighted skewness
             double skewness = (sumWeightCubes / sumWeights) - 3 * mean * (sumWeightSquares / sumWeights) + 2*Math.pow(mean, 3);
 
+            // if variance is 0, avoid division by zero
+            if (variance == 0.0) {
+                return 0.0;
+            }
+
             // Returning the weighted skewness
             return skewness / Math.pow(Math.max(variance, 0.0), 1.5);  // Normalize by the variance's 3/2 power
         }

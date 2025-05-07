@@ -147,6 +147,17 @@ public class AllUdafIT {
         runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
     }
 
+    @Test
+    void testSkewnessWeighted_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
+
+        double[] values = {0, 0, 0};
+        double[] weights = {1, 1, 1};
+
+        double expected = computeWeightedSkewness(values, weights);
+
+        runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
+    }
+
     @AfterEach
     void cleanUpKsqlDbObjects() throws Exception {
         String host = ksqldb.getHost();
