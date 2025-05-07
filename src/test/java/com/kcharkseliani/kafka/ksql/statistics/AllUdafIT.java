@@ -125,6 +125,17 @@ public class AllUdafIT {
         runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
     }
 
+    @Test
+    void testSkewnessWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
+
+        double[] values = {5.0, 2.0, 8.0};
+        double[] weights = {2.0, 4.0, 1.0};
+
+        double expected = computeWeightedSkewness(values, weights);
+
+        runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
+    }
+
     @AfterEach
     void cleanUpKsqlDbObjects() throws Exception {
         String host = ksqldb.getHost();
@@ -283,7 +294,7 @@ public class AllUdafIT {
     }
 
     private static double computeWeightedStdDev(double[] values, double[] weights) {
-        
+
         double weightedSum = 0.0;
         double weightedSumSquares = 0.0;
         double sumWeights = 0.0;
@@ -294,6 +305,7 @@ public class AllUdafIT {
             sumWeights += weights[i];
         }
     
+        // Avoid division by zero
         if (sumWeights == 0.0) {
             return 0.0;
         }
@@ -301,5 +313,38 @@ public class AllUdafIT {
         double mean = weightedSum / sumWeights;
         double variance = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
         return Math.sqrt(Math.max(variance, 0.0));
+    }
+
+    private static double computeWeightedSkewness(double[] values, double[] weights) {
+        double sumWeights = 0.0;
+        double weightedSum = 0.0;
+        double weightedSumSquares = 0.0;
+        double weightedSumCubes = 0.0;
+    
+        for (int i = 0; i < values.length; i++) {
+            double val = values[i];
+            double weight = weights[i];
+    
+            sumWeights += weight;
+            weightedSum += weight * val;
+            weightedSumSquares += weight * Math.pow(val, 2);
+            weightedSumCubes += weight * Math.pow(val, 3);
+        }
+    
+        // Avoid division by zero
+        if (sumWeights == 0.0) {
+            return 0.0;
+        }
+    
+        double mean = weightedSum / sumWeights;
+        double m2 = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
+        double m3 = (weightedSumCubes / sumWeights) - 3 * mean * (weightedSumSquares / sumWeights) + 2 * Math.pow(mean, 3);
+    
+        // Avoid division by zero
+        if (m2 == 0.0) {
+            return 0.0;
+        }
+    
+        return m3 / Math.pow(m2, 1.5);
     }
 }
