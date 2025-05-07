@@ -2,7 +2,6 @@ package com.kcharkseliani.kafka.ksql.statistics;
 
 import com.kcharkseliani.kafka.ksql.statistics.util.UdafMetadata;
 
-import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,7 +14,6 @@ import java.util.stream.StreamSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.apache.commons.compress.harmony.unpack200.bytecode.ExceptionTableEntry;
 import org.junit.jupiter.api.*;
 
 import org.testcontainers.containers.KafkaContainer;
@@ -33,7 +31,7 @@ public class AllUdafIT {
     static Network network;
 
     @BeforeAll
-    static void setUp() {
+    static void setUp() throws Exception {
 
         boolean dockerAvailable = DockerClientFactory.instance().isDockerAvailable();
         System.out.println("Testcontainers Docker available: " + dockerAvailable);
@@ -62,6 +60,9 @@ public class AllUdafIT {
             .dependsOn(kafka);
 
         ksqldb.start();
+
+        // Sleep to wait for ksqlDB to be ready for requests
+        Thread.sleep(5_000);
     }
 
     @Test
@@ -109,7 +110,22 @@ public class AllUdafIT {
 
         HttpClient client = HttpClient.newHttpClient();
 
-        // 1. Create stream
+        // === Input test data ===
+        double[] values = {5.0, 2.0, 8.0};
+        double[] weights = {2.0, 4.0, 1.0};
+
+        // === Expected weighted stddev computation ===
+        double weightedSum = 0.0, weightedSumSquares = 0.0, sumWeights = 0.0;
+        for (int i = 0; i < values.length; i++) {
+            weightedSum += values[i] * weights[i];
+            weightedSumSquares += weights[i] * Math.pow(values[i], 2);
+            sumWeights += weights[i];
+        }
+        double mean = weightedSum / sumWeights;
+        double variance = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
+        double expectedStdDev = Math.sqrt(Math.max(variance, 0.0));
+
+        // === 1. Create stream ===
         String createStream =
             "{ \"ksql\": \"CREATE STREAM weighted_input (val DOUBLE, weight DOUBLE) " +
             "WITH (kafka_topic='weighted_input', value_format='json', partitions=1);\", " +
@@ -126,9 +142,34 @@ public class AllUdafIT {
 
         if (streamResponse.statusCode() != 200) {
             throw new IllegalStateException("Failed to create stream: " + streamResponse.body());
-        }
+        }      
 
-        // 2. Insert test data
+        // === 2. Create table with aggregation using STDDEV_WEIGHTED ===
+        // Sleep to wait for stream creation to complete
+        Thread.sleep(2_000);
+        String createTableWithSingletonKey =
+            "{ \"ksql\": \"CREATE TABLE stddev_result WITH (" +
+            "KAFKA_TOPIC='stddev_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
+            "SELECT 'singleton' AS id, STDDEV_WEIGHTED(val, weight) AS stddev " +
+            "FROM weighted_input " +
+            "GROUP BY 'singleton' EMIT CHANGES;\"," +
+            " \"streamsProperties\": {} }";
+
+        HttpResponse<String> tableResponse = client.send(
+            HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl))
+                .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(createTableWithSingletonKey))
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+
+        Assertions.assertEquals(200, tableResponse.statusCode(), 
+            "Failed to create the table with the UDAF result: " + tableResponse.body());
+
+        // === 3. Insert test data ===
+        // Sleep to wait for table creation to complete
+        Thread.sleep(2_000);
         String insertData =
             "{\n" +
             "  \"ksql\": \"INSERT INTO weighted_input (val, weight) VALUES (5.0, 2.0); " +
@@ -150,26 +191,39 @@ public class AllUdafIT {
             throw new IllegalStateException("Failed to insert test data: " + insertResponse.body());
         }
 
-        // 3. Create table with aggregation using STDDEV_WEIGHTED
-        String createTableWithSingletonKey =
-            "{ \"ksql\": \"CREATE TABLE stddev_result WITH (" +
-            "KAFKA_TOPIC='stddev_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
-            "SELECT 'singleton' AS id, STDDEV_WEIGHTED(val, weight) AS stddev " +
-            "FROM weighted_input " +
-            "GROUP BY 'singleton' EMIT CHANGES;\"," +
-            " \"streamsProperties\": {} }";
+        // === 4. Query table result ===
+        // Sleep to wait for data to finish inserting
+        Thread.sleep(2_000);
 
-        HttpResponse<String> tableResponse = client.send(
+        String pullQuery =
+        "{ \"ksql\": \"SELECT * FROM stddev_result WHERE id = 'singleton';\", " +
+        "\"streamsProperties\": {} }";
+    
+        HttpResponse<String> queryResponse = client.send(
             HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl))
+                .uri(URI.create("http://" + host + ":" + port + "/query"))
                 .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(createTableWithSingletonKey))
+                .POST(HttpRequest.BodyPublishers.ofString(pullQuery))
                 .build(),
             HttpResponse.BodyHandlers.ofString()
         );
+    
+        Assertions.assertEquals(200, queryResponse.statusCode(), 
+            "Pull query to extract UDAF result failed: " + queryResponse.body());
 
-        Assertions.assertEquals(200, tableResponse.statusCode(), 
-            "Failed to create the table with the UDAF result: " + tableResponse.body());
+        // === 5. Extract and compare value ===
+        String body = queryResponse.body();
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(body);
+
+        // The second element of the array contains the actual row with results
+        JsonNode rowNode = root.get(1).path("row").path("columns");
+
+        // Get the standard deviation (second column)
+        double actualStdDev = rowNode.get(1).asDouble();
+
+        Assertions.assertEquals(expectedStdDev, actualStdDev, 0.0001);
     }
 
     @AfterAll
