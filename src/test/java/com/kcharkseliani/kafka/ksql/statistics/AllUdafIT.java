@@ -170,11 +170,17 @@ public class AllUdafIT {
         // === 3. Insert test data ===
         // Sleep to wait for table creation to complete
         Thread.sleep(2_000);
-        String insertData =
-            "{\n" +
-            "  \"ksql\": \"INSERT INTO weighted_input (val, weight) VALUES (5.0, 2.0); " +
-            "INSERT INTO weighted_input (val, weight) VALUES (2.0, 4.0); " +
-            "INSERT INTO weighted_input (val, weight) VALUES (8.0, 1.0);\",\n" +
+        
+        // Build INSERT statements dynamically
+        StringBuilder insertStatements = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            insertStatements.append("INSERT INTO weighted_input (val, weight) VALUES (")
+                            .append(values[i]).append(", ").append(weights[i]).append("); ");
+        }
+
+        // Build the final JSON string
+        String insertData = "{\n" +
+            "  \"ksql\": \"" + insertStatements.toString().trim() + "\",\n" +
             "  \"streamsProperties\": {}\n" +
             "}";
 
