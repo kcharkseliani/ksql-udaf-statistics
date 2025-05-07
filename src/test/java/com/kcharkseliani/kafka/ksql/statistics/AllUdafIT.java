@@ -122,6 +122,46 @@ public class AllUdafIT {
         runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
     }
 
+    @AfterEach
+    void cleanUpKsqlDbObjects() throws Exception {
+        String host = ksqldb.getHost();
+        int port = ksqldb.getMappedPort(8088);
+        String baseUrl = "http://" + host + ":" + port + "/ksql";
+        HttpClient client = HttpClient.newHttpClient();
+
+        // Drop table if exists
+        String dropTable = "{ \"ksql\": \"DROP TABLE IF EXISTS aggregated_result DELETE TOPIC;\", \"streamsProperties\": {} }";
+        HttpResponse<String> tableResponse = client.send(
+        HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl))
+            .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+            .POST(HttpRequest.BodyPublishers.ofString(dropTable))
+            .build(),
+        HttpResponse.BodyHandlers.ofString()
+        );
+        if (tableResponse.statusCode() != 200) {
+            throw new IllegalStateException("Failed to drop table: " + tableResponse.body());
+        }
+
+        Thread.sleep(2_000);
+
+        // Drop stream if exists
+        String dropStream = "{ \"ksql\": \"DROP STREAM IF EXISTS input_values DELETE TOPIC;\", \"streamsProperties\": {} }";
+        HttpResponse<String> streamResponse = client.send(
+        HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl))
+            .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+            .POST(HttpRequest.BodyPublishers.ofString(dropStream))
+            .build(),
+        HttpResponse.BodyHandlers.ofString()
+        );
+        if (streamResponse.statusCode() != 200) {
+            throw new IllegalStateException("Failed to drop stream: " + streamResponse.body());
+        }
+
+        Thread.sleep(2_000);
+    }
+
     @AfterAll
     static void tearDown() {
         ksqldb.stop();
@@ -137,8 +177,8 @@ public class AllUdafIT {
     
         // === 1. Create stream ===
         String createStream =
-            "{ \"ksql\": \"CREATE STREAM weighted_input (val DOUBLE, weight DOUBLE) " +
-            "WITH (kafka_topic='weighted_input', value_format='json', partitions=1);\", " +
+            "{ \"ksql\": \"CREATE STREAM input_values (val DOUBLE, weight DOUBLE) " +
+            "WITH (kafka_topic='input_values', value_format='json', partitions=1);\", " +
             "\"streamsProperties\":{} }";
     
         HttpResponse<String> streamResponse = client.send(
@@ -162,7 +202,7 @@ public class AllUdafIT {
             "{ \"ksql\": \"CREATE TABLE aggregated_result WITH (" +
             "KAFKA_TOPIC='aggregated_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
             "SELECT 'singleton' AS id, " + functionName + "(val, weight) AS result " +
-            "FROM weighted_input " +
+            "FROM input_values " +
             "GROUP BY 'singleton' EMIT CHANGES;\"," +
             " \"streamsProperties\": {} }";
     
@@ -185,7 +225,7 @@ public class AllUdafIT {
         // Build INSERT statements dynamically
         StringBuilder insertStatements = new StringBuilder();
         for (int i = 0; i < values.length; i++) {
-            insertStatements.append("INSERT INTO weighted_input (val, weight) VALUES (")
+            insertStatements.append("INSERT INTO input_values (val, weight) VALUES (")
                             .append(values[i]).append(", ").append(weights[i]).append("); ");
         }
     
