@@ -2,6 +2,7 @@ package com.kcharkseliani.kafka.ksql.statistics;
 
 import com.kcharkseliani.kafka.ksql.statistics.util.UdafMetadata;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -14,6 +15,7 @@ import java.util.stream.StreamSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.commons.compress.harmony.unpack200.bytecode.ExceptionTableEntry;
 import org.junit.jupiter.api.*;
 
 import org.testcontainers.containers.KafkaContainer;
@@ -53,6 +55,7 @@ public class AllUdafIT {
         ksqldb = new GenericContainer<>(DockerImageName.parse("confluentinc/ksqldb-server:0.29.0"))
             .withNetwork(network)
             .withExposedPorts(8088)
+            .withNetworkAliases("ksqldb")
             .withEnv("KSQL_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:9092")
             .withEnv("KSQL_KSQL_EXTENSION_DIR", "/opt/ksqldb-udfs")  // mount your UDAF JAR here
             .withFileSystemBind("extensions", "/opt/ksqldb-udfs", BindMode.READ_ONLY) // mounts your UDAF uber-jar
@@ -96,6 +99,77 @@ public class AllUdafIT {
             Assertions.assertTrue(actualFunctionNames.contains(expected),
                 "Missing UDAF in ksqlDB: " + expected);
         }
+    }
+
+    @Test
+    void testStddevWeighted_RecordsInserted_ShouldAggregateAll() throws Exception {
+        String host = ksqldb.getHost();
+        int port = ksqldb.getMappedPort(8088);
+        String baseUrl = "http://" + host + ":" + port + "/ksql";
+
+        HttpClient client = HttpClient.newHttpClient();
+
+        // 1. Create stream
+        String createStream =
+            "{ \"ksql\": \"CREATE STREAM weighted_input (val DOUBLE, weight DOUBLE) " +
+            "WITH (kafka_topic='weighted_input', value_format='json', partitions=1);\", " +
+            "\"streamsProperties\":{} }";
+
+        HttpResponse<String> streamResponse = client.send(
+            HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl))
+                .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(createStream))
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+
+        if (streamResponse.statusCode() != 200) {
+            throw new IllegalStateException("Failed to create stream: " + streamResponse.body());
+        }
+
+        // 2. Insert test data
+        String insertData =
+            "{\n" +
+            "  \"ksql\": \"INSERT INTO weighted_input (val, weight) VALUES (5.0, 2.0); " +
+            "INSERT INTO weighted_input (val, weight) VALUES (2.0, 4.0); " +
+            "INSERT INTO weighted_input (val, weight) VALUES (8.0, 1.0);\",\n" +
+            "  \"streamsProperties\": {}\n" +
+            "}";
+
+        HttpResponse<String> insertResponse = client.send(
+            HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl))
+                .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(insertData))
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+
+        if (insertResponse.statusCode() != 200) {
+            throw new IllegalStateException("Failed to insert test data: " + insertResponse.body());
+        }
+
+        // 3. Create table with aggregation using STDDEV_WEIGHTED
+        String createTableWithSingletonKey =
+            "{ \"ksql\": \"CREATE TABLE stddev_result WITH (" +
+            "KAFKA_TOPIC='stddev_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
+            "SELECT 'singleton' AS id, STDDEV_WEIGHTED(val, weight) AS stddev " +
+            "FROM weighted_input " +
+            "GROUP BY 'singleton' EMIT CHANGES;\"," +
+            " \"streamsProperties\": {} }";
+
+        HttpResponse<String> tableResponse = client.send(
+            HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl))
+                .header("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(createTableWithSingletonKey))
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+
+        Assertions.assertEquals(200, tableResponse.statusCode(), 
+            "Failed to create the table with the UDAF result: " + tableResponse.body());
     }
 
     @AfterAll
