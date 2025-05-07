@@ -104,20 +104,23 @@ public class AllUdafIT {
     }
 
     @Test
-    void testStddevWeighted_RecordsInserted_ShouldAggregateAll() throws Exception {
+    void testStddevWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
 
         double[] values = {5.0, 2.0, 8.0};
         double[] weights = {2.0, 4.0, 1.0};
 
-        double weightedSum = 0.0, weightedSumSquares = 0.0, sumWeights = 0.0;
-        for (int i = 0; i < values.length; i++) {
-            weightedSum += values[i] * weights[i];
-            weightedSumSquares += weights[i] * Math.pow(values[i], 2);
-            sumWeights += weights[i];
-        }
-        double mean = weightedSum / sumWeights;
-        double variance = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
-        double expected = Math.sqrt(Math.max(variance, 0.0));
+        double expected = computeWeightedStdDev(values, weights);
+
+        runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
+    }
+
+    @Test
+    void testStddevWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
+
+        double[] values = {0, 0, 0};
+        double[] weights = {0, 0, 0};
+
+        double expected = computeWeightedStdDev(values, weights);
 
         runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
     }
@@ -168,7 +171,11 @@ public class AllUdafIT {
         kafka.stop();
     }
 
-    private void runWeightedAggregationTest(double[] values, double[] weights, double expectedValue, String functionName) throws Exception {
+    private void runWeightedAggregationTest(double[] values, 
+        double[] weights, 
+        double expectedValue, 
+        String functionName) throws Exception {
+
         String host = ksqldb.getHost();
         int port = ksqldb.getMappedPort(8088);
         String baseUrl = "http://" + host + ":" + port + "/ksql";
@@ -273,5 +280,26 @@ public class AllUdafIT {
     
         Assertions.assertEquals(expectedValue, actual, 0.0001,
             "Expected " + expectedValue + " but got " + actual);
+    }
+
+    private static double computeWeightedStdDev(double[] values, double[] weights) {
+        
+        double weightedSum = 0.0;
+        double weightedSumSquares = 0.0;
+        double sumWeights = 0.0;
+    
+        for (int i = 0; i < values.length; i++) {
+            weightedSum += values[i] * weights[i];
+            weightedSumSquares += weights[i] * Math.pow(values[i], 2);
+            sumWeights += weights[i];
+        }
+    
+        if (sumWeights == 0.0) {
+            return 0.0;
+        }
+    
+        double mean = weightedSum / sumWeights;
+        double variance = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
+        return Math.sqrt(Math.max(variance, 0.0));
     }
 }
