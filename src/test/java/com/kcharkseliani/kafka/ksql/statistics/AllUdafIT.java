@@ -10,9 +10,18 @@ import java.net.http.HttpResponse;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import java.util.Collections;
+import java.util.Properties;
+import java.time.Duration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.serialization.StringDeserializer;
 
 import org.junit.jupiter.api.*;
 
@@ -313,6 +322,41 @@ public class AllUdafIT {
     
         Assertions.assertEquals(expectedValue, actual, 0.0001,
             "Expected " + expectedValue + " but got " + actual);
+
+        // === 5. Consume from output Kafka topic to verify ===
+        Properties props = new Properties();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "test-consumer-group");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props)) {
+            consumer.subscribe(Collections.singletonList("aggregated_output"));
+
+            boolean found = false;
+            double actualFromKafka = Double.NaN;
+            long start = System.currentTimeMillis();
+
+            // Poll Kafka for new messages until timeout expires
+            while (!found && System.currentTimeMillis() - start < 5_000) {
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500));
+                for (ConsumerRecord<String, String> record : records) {
+                    String value = record.value();
+                    if (value.contains("RESULT")) {
+                        ObjectMapper mapper = new ObjectMapper();
+                        JsonNode json = mapper.readTree(value);
+                        actualFromKafka = json.path("RESULT").asDouble();
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            Assertions.assertTrue(found, "Did not receive aggregated output from Kafka topic");
+            Assertions.assertEquals(expectedValue, actualFromKafka, 0.0001,
+                "Expected value from Kafka " + expectedValue + " but got " + actualFromKafka);
+        }
     }
 
     private static double computeWeightedStdDev(double[] values, double[] weights) {
