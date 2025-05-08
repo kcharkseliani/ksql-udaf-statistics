@@ -32,13 +32,35 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.containers.Network;
 
+/**
+ * Integration test suite for verifying custom UDAFs (User-Defined Aggregate Functions)
+ * in a ksqlDB environment using Testcontainers.
+ * 
+ * This test class deploys a temporary Kafka and ksqlDB instance,
+ * loads UDAF extensions, inserts test records, and verifies
+ * correct aggregation results using both HTTP queries and Kafka consumers.
+ */
 public class AllUdafIT {
 
+    /**
+     * Testcontainers-managed Kafka broker used for integration testing.
+     */
     static KafkaContainer kafka;
+
+    /**
+     * Testcontainers-managed ksqlDB server instance used for executing queries and aggregations.
+     */
     static GenericContainer<?> ksqldb;
 
+    /**
+     * Shared Docker network for inter-container communication between Kafka and ksqlDB.
+     */
     static Network network;
 
+    /**
+     * Bootstraps Testcontainers for Kafka and ksqlDB before all tests run.
+     * Ensures the UDAF extension JAR is mounted and ksqlDB is configured correctly.
+     */
     @BeforeAll
     static void setUp() throws Exception {
 
@@ -74,6 +96,12 @@ public class AllUdafIT {
         Thread.sleep(5_000);
     }
 
+    /**
+     * Verifies that all UDAFs defined in the codebase are correctly registered and discoverable in ksqlDB.
+     * Uses annotation scanning via {@link UdafMetadata}.
+     *
+     * @throws Exception if the HTTP query or parsing fails
+     */
     @Test
     void testDeployment_shouldContainAllDeclaredUdafs() throws Exception {
 
@@ -112,6 +140,12 @@ public class AllUdafIT {
         }
     }
 
+    /**
+     * Tests the STDDEV_WEIGHTED UDAF on a set of weighted values and compares the result to the expected 
+     * standard deviation.
+     *
+     * @throws Exception if any ksqlDB or HTTP operation fails
+     */
     @Test
     void testStddevWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
 
@@ -123,6 +157,12 @@ public class AllUdafIT {
         runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
     }
 
+    /**
+     * Tests the STDDEV_WEIGHTED UDAF on all-zero values and weights.
+     * Verifies the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if the test setup or query fails
+     */
     @Test
     void testStddevWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
 
@@ -134,6 +174,12 @@ public class AllUdafIT {
         runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
     }
 
+    /**
+     * Tests the SKEWNESS_WEIGHTED UDAF on a representative weighted dataset.
+     * Asserts that the skewness value matches the expected computation.
+     *
+     * @throws Exception if any HTTP or parsing operation fails
+     */
     @Test
     void testSkewnessWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
 
@@ -145,6 +191,12 @@ public class AllUdafIT {
         runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
     }
 
+    /**
+     * Tests the SKEWNESS_WEIGHTED UDAF where all weights are zero.
+     * Expects the result to be zero without causing division errors.
+     *
+     * @throws Exception if setup or validation fails
+     */
     @Test
     void testSkewnessWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
 
@@ -156,6 +208,12 @@ public class AllUdafIT {
         runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
     }
 
+    /**
+     * Tests the SKEWNESS_WEIGHTED UDAF on values with zero variance.
+     * Ensures the function returns zero instead of NaN or infinity.
+     *
+     * @throws Exception if ksqlDB interaction fails
+     */
     @Test
     void testSkewnessWeighted_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
 
@@ -167,6 +225,12 @@ public class AllUdafIT {
         runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
     }
 
+    /**
+     * Cleans up the test environment after each test method by dropping created tables and streams.
+     * This ensures isolated test execution and fresh state.
+     *
+     * @throws Exception if cleanup HTTP requests fail
+     */
     @AfterEach
     void cleanUpKsqlDbObjects() throws Exception {
         String host = ksqldb.getHost();
@@ -207,12 +271,28 @@ public class AllUdafIT {
         Thread.sleep(2_000);
     }
 
+    /**
+     * Tears down and stops all running Testcontainers including Kafka and ksqlDB
+     * after all tests have completed.
+     */
     @AfterAll
     static void tearDown() {
         ksqldb.stop();
         kafka.stop();
     }
 
+    /**
+     * Helper method that executes a full integration test against a specified UDAF.
+     * It creates a stream and table, inserts test data, and verifies results through:
+     * - Pull queries to ksqlDB
+     * - Reading from the output Kafka topic
+     *
+     * @param values array of input values
+     * @param weights corresponding array of weights
+     * @param expectedValue expected result from the aggregation
+     * @param functionName the name of the UDAF to apply (e.g. STDDEV_WEIGHTED)
+     * @throws Exception if any step in the test flow fails
+     */
     private void runWeightedAggregationTest(double[] values, 
         double[] weights, 
         double expectedValue, 
@@ -359,6 +439,13 @@ public class AllUdafIT {
         }
     }
 
+    /**
+     * Computes the weighted standard deviation of a set of values using provided weights.
+     *
+     * @param values array of numeric values
+     * @param weights array of corresponding weights
+     * @return the weighted standard deviation, or 0.0 if total weight is zero
+     */
     private static double computeWeightedStdDev(double[] values, double[] weights) {
 
         double weightedSum = 0.0;
@@ -381,6 +468,13 @@ public class AllUdafIT {
         return Math.sqrt(Math.max(variance, 0.0));
     }
 
+    /**
+     * Computes the weighted skewness of a set of values using provided weights.
+     *
+     * @param values array of numeric values
+     * @param weights array of corresponding weights
+     * @return the weighted skewness, or 0.0 if total weight or variance is zero
+     */
     private static double computeWeightedSkewness(double[] values, double[] weights) {
         double sumWeights = 0.0;
         double weightedSum = 0.0;
