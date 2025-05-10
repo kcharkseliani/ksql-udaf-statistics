@@ -141,8 +141,8 @@ public class AllUdafIT {
     }
 
     /**
-     * Tests the STDDEV_WEIGHTED UDAF on a set of weighted values and compares the result to the expected 
-     * standard deviation.
+     * Tests the STDDEV_WEIGHTED UDAF on a set of weighted values.
+     * Asserts that the standard deviation value matches the expected computation.
      *
      * @throws Exception if any ksqlDB or HTTP operation fails
      */
@@ -159,7 +159,7 @@ public class AllUdafIT {
 
     /**
      * Tests the STDDEV_WEIGHTED UDAF on all-zero values and weights.
-     * Verifies the result is zero and does not produce NaN or error.
+     * Asserts that the result is zero and does not produce NaN or error.
      *
      * @throws Exception if the test setup or query fails
      */
@@ -193,7 +193,7 @@ public class AllUdafIT {
 
     /**
      * Tests the SKEWNESS_WEIGHTED UDAF where all weights are zero.
-     * Expects the result to be zero without causing division errors.
+     * Asserts that the result is zero and does not produce NaN or error.
      *
      * @throws Exception if setup or validation fails
      */
@@ -210,7 +210,7 @@ public class AllUdafIT {
 
     /**
      * Tests the SKEWNESS_WEIGHTED UDAF on values with zero variance.
-     * Ensures the function returns zero instead of NaN or infinity.
+     * Asserts that the result is zero and does not produce NaN or error.
      *
      * @throws Exception if ksqlDB interaction fails
      */
