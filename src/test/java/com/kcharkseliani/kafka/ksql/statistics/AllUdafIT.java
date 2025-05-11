@@ -24,6 +24,8 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.DockerClientFactory;
@@ -40,6 +42,7 @@ import org.testcontainers.containers.Network;
  * loads UDAF extensions, inserts test records, and verifies
  * correct aggregation results using both HTTP queries and Kafka consumers.
  */
+@TestMethodOrder(OrderAnnotation.class)
 public class AllUdafIT {
 
     /**
@@ -98,11 +101,12 @@ public class AllUdafIT {
 
     /**
      * Verifies that all UDAFs defined in the codebase are correctly registered and discoverable in ksqlDB.
-     * Uses annotation scanning via {@link UdafMetadata}.
+     * Uses annotation scanning via {@link UdafMetadata}. Always runs first using {@link OrderAnnotation}
      *
      * @throws Exception if the HTTP query or parsing fails
      */
     @Test
+    @Order(1)
     void testDeployment_shouldContainAllDeclaredUdafs() throws Exception {
 
         Set<String> expectedFunctionNames = UdafMetadata.getDeclaredUdafNames();
