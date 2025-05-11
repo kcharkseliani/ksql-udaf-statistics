@@ -23,13 +23,13 @@ public class WeightedStdDevUdafTest {
     /** Instance of the UDAF under test. */
     private Udaf<Pair<Double, Double>, Struct, Double> udafImpl;
 
-    /** Field name for the internal aggregation state of the weighted sum. */
+    /** Field name for the internal aggregation state of the sum of values. */
     private static final String SUM_VALUES = "SUM_VALUES";
 
     /** Field name for the internal aggregation state of the sum of weights. */
     private static final String SUM_WEIGHTS = "SUM_WEIGHTS";
 
-    /** Field name for the internal aggregation state of the weighted squares. */
+    /** Field name for the internal aggregation state of the sum of weighted squares. */
     private static final String SUM_WEIGHT_SQUARES = "SUM_WEIGHT_SQUARES";
 
     /** Schema used to structure the aggregation state. */

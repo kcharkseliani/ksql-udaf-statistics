@@ -22,7 +22,7 @@ public class WeightedSkewnessUdafTest {
     /** Instance of the UDAF under test. */
     private Udaf<Pair<Double, Double>, Struct, Double> udafImpl;
 
-    /** Field name for the internal aggregation state of the weighted values. */
+    /** Field name for the internal aggregation state of the sum of values. */
     private static final String SUM_VALUES = "SUM_VALUES";
 
     /** Field name for the internal aggregation state of the sum of weights. */
