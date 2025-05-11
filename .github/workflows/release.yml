@@ -60,12 +60,13 @@ jobs:
       uses: gittools/actions/gitversion/execute@v3.0.3
       id: gitversion
 
-    # Step 6: Set version and build the project using shadowJar
+    # Step 6: Set version, run unit tests, build the project using shadowJar,
+    #   and run integration tests (fails the pipeline if Docker is not available or tests fail)
     - name: Display Version
       run: echo "Version ${{ steps.gitversion.outputs.semVer }}"
 
-    - name: Build shadowJar with version
-      run: gradle shadowJar -PbuildVersion='${{ steps.gitversion.outputs.semVer }}'
+    - name: Verify build and run all tests
+      run: gradle verify -PbuildVersion='${{ steps.gitversion.outputs.semVer }}'
 
     # Step 7: Tag the commit with the version
     - name: Tag the commit with version
@@ -91,7 +92,7 @@ jobs:
         draft: true
         prerelease: ${{ github.ref != 'refs/heads/main' }}
 
-    # Step 10: Upload shadowJar .jar to release
+    # Step 9: Upload shadowJar .jar to release
     - name: Upload shadowJar to release
       uses: actions/upload-release-asset@v1
       env:
