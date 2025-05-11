@@ -147,5 +147,30 @@ public class WeightedSkewnessUdafTest {
 
         assertEquals(0.0, skewness, 0.0001);
     }
+
+    /**
+     * Tests that {@code map} returns 0 when variance is zero,
+     * even if weights are non-zero (e.g. all values are the same).
+     */
+    @Test
+    void testMapWithZeroVariance() {
+        // All values are 3.0, weights are non-zero, so variance = 0
+        double repeatedValue = 3.0;
+        double totalWeight = 6.0;
+        double sumValues = repeatedValue * totalWeight;
+        double sumWeightSquares = repeatedValue * repeatedValue * totalWeight;
+        double sumWeightCubes = repeatedValue * repeatedValue * repeatedValue * totalWeight;
+
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+                .put(SUM_VALUES, sumValues)
+                .put(SUM_WEIGHTS, totalWeight)
+                .put(SUM_WEIGHT_SQUARES, sumWeightSquares)
+                .put(SUM_WEIGHT_CUBES, sumWeightCubes);
+
+        Double skewness = udafImpl.map(aggregate);
+
+        // Expect skewness to be zero since variance is zero (all values equal)
+        assertEquals(0.0, skewness, 0.0001);
+    }
 }
 
