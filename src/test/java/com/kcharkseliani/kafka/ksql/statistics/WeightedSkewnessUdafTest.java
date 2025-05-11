@@ -10,13 +10,31 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Unit tests for the {@link WeightedSkewnessUdaf} class.
+ * 
+ * This class validates that the custom weighted skewness UDAF (user-defined aggregate function)
+ * behaves correctly across all of its expected operations: initialization, aggregation, mapping,
+ * and merging of intermediate states. It also verifies correct behavior when handling zero weights.
+ */
 public class WeightedSkewnessUdafTest {
 
+    /** Instance of the UDAF under test. */
     private Udaf<Pair<Double, Double>, Struct, Double> udafImpl;
+
+    /** Field name for the internal aggregation state of the sum of values. */
     private static final String SUM_VALUES = "SUM_VALUES";
+
+    /** Field name for the internal aggregation state of the sum of weights. */
     private static final String SUM_WEIGHTS = "SUM_WEIGHTS";
+
+    /** Field name for the internal aggregation state of the sum of weighted squares. */
     private static final String SUM_WEIGHT_SQUARES = "SUM_WEIGHT_SQUARES";
+
+    /** Field name for the internal aggregation state of the sum of weighted cubes. */
     private static final String SUM_WEIGHT_CUBES = "SUM_WEIGHT_CUBES";
+
+    /** Schema used to structure the aggregation result. */
     private static final Schema STRUCT_SCHEMA = SchemaBuilder.struct().optional()
             .field(SUM_VALUES, Schema.OPTIONAL_FLOAT64_SCHEMA)
             .field(SUM_WEIGHTS, Schema.OPTIONAL_FLOAT64_SCHEMA)
@@ -24,13 +42,19 @@ public class WeightedSkewnessUdafTest {
             .field(SUM_WEIGHT_CUBES, Schema.OPTIONAL_FLOAT64_SCHEMA)
             .build();
 
+    /**
+     * Initializes a new instance of the UDAF before each test.
+     */
     @BeforeEach
     void setUp() {
         udafImpl = WeightedSkewnessUdaf.createUdaf();
     }
 
+    /**
+     * Tests that the {@code initialize} method creates a struct with all zero fields.
+     */
     @Test
-    void testInitialize() {
+    void testInitialize_ShouldContainZeroedState() {
         Struct initialStruct = udafImpl.initialize();
 
         assertNotNull(initialStruct);
@@ -40,8 +64,11 @@ public class WeightedSkewnessUdafTest {
         assertEquals(0.0, initialStruct.getFloat64(SUM_WEIGHT_CUBES));
     }
 
+    /**
+     * Tests that the {@code aggregate} method correctly updates the intermediate aggregation state.
+     */
     @Test
-    void testAggregate() {
+    void testAggregate_ShouldUpdateIntermediateStateCorrectly() {
         Pair<Double, Double> pair = new Pair<>(5.0, 2.0);
         Struct aggregateStruct = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 10.0)
@@ -58,8 +85,11 @@ public class WeightedSkewnessUdafTest {
         assertEquals(250.0 + 2.0 * Math.pow(5.0, 3), result.getFloat64(SUM_WEIGHT_CUBES), 0.0001);
     }
 
+    /**
+     * Tests that the {@code map} method correctly computes the weighted skewness.
+     */
     @Test
-    void testMap() {
+    void testMap_ValidRecords_ShouldReturnExpectedSkewness() {
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 15.0)
                 .put(SUM_WEIGHTS, 5.0)
@@ -76,8 +106,11 @@ public class WeightedSkewnessUdafTest {
         assertEquals(expectedSkewness, skewness, 0.0001);
     }
 
+    /**
+     * Tests that the {@code merge} method combines two intermediate structs correctly.
+     */
     @Test
-    void testMerge() {
+    void testMerge_ShouldCombineIntermediateStatesCorrectly() {
         Struct aggOne = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 20.0)
                 .put(SUM_WEIGHTS, 6.0)
@@ -99,8 +132,11 @@ public class WeightedSkewnessUdafTest {
         assertEquals(760.0, merged.getFloat64(SUM_WEIGHT_CUBES), 0.0001);
     }
 
+    /**
+     * Tests that {@code map} returns 0 when weights are all zero, avoiding division by zero.
+     */
     @Test
-    void testMapWithZeroWeights() {
+    void testMap_ZeroWeights_ShouldReturnZeroSkewness() {
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 0.0)
                 .put(SUM_WEIGHTS, 0.0)
@@ -109,6 +145,31 @@ public class WeightedSkewnessUdafTest {
 
         Double skewness = udafImpl.map(aggregate);
 
+        assertEquals(0.0, skewness, 0.0001);
+    }
+
+    /**
+     * Tests that {@code map} returns 0 when variance is zero,
+     * even if weights are non-zero (e.g. all values are the same).
+     */
+    @Test
+    void testMap_ZeroVariance_ShouldReturnZeroSkewness() {
+        // All values are 3.0, weights are non-zero, so variance = 0
+        double repeatedValue = 3.0;
+        double totalWeight = 6.0;
+        double sumValues = repeatedValue * totalWeight;
+        double sumWeightSquares = repeatedValue * repeatedValue * totalWeight;
+        double sumWeightCubes = repeatedValue * repeatedValue * repeatedValue * totalWeight;
+
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+                .put(SUM_VALUES, sumValues)
+                .put(SUM_WEIGHTS, totalWeight)
+                .put(SUM_WEIGHT_SQUARES, sumWeightSquares)
+                .put(SUM_WEIGHT_CUBES, sumWeightCubes);
+
+        Double skewness = udafImpl.map(aggregate);
+
+        // Expect skewness to be zero since variance is zero (all values equal)
         assertEquals(0.0, skewness, 0.0001);
     }
 }

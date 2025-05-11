@@ -11,25 +11,47 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Unit tests for the {@link WeightedStdDevUdaf} class.
+ * 
+ * This class verifies the correctness of the custom weighted standard deviation UDAF (user-defined aggregate function)
+ * in ksqlDB. It covers the lifecycle operations of the UDAF, including initialization, aggregation, mapping, 
+ * merging of intermediate states, and handling of edge cases like zero weights.
+ */
 public class WeightedStdDevUdafTest {
 
+    /** Instance of the UDAF under test. */
     private Udaf<Pair<Double, Double>, Struct, Double> udafImpl;
+
+    /** Field name for the internal aggregation state of the sum of values. */
     private static final String SUM_VALUES = "SUM_VALUES";
+
+    /** Field name for the internal aggregation state of the sum of weights. */
     private static final String SUM_WEIGHTS = "SUM_WEIGHTS";
+
+    /** Field name for the internal aggregation state of the sum of weighted squares. */
     private static final String SUM_WEIGHT_SQUARES = "SUM_WEIGHT_SQUARES";
+
+    /** Schema used to structure the aggregation state. */
     private static final Schema STRUCT_SCHEMA = SchemaBuilder.struct().optional()
             .field(SUM_VALUES, Schema.OPTIONAL_FLOAT64_SCHEMA)
             .field(SUM_WEIGHTS, Schema.OPTIONAL_FLOAT64_SCHEMA)
             .field(SUM_WEIGHT_SQUARES, Schema.OPTIONAL_FLOAT64_SCHEMA)
             .build();
 
+    /**
+     * Initializes the UDAF instance before each test.
+     */
     @BeforeEach
     void setUp() {
         udafImpl = WeightedStdDevUdaf.createUdaf();
     }
 
+    /**
+     * Tests that the {@code initialize} method returns a struct with zeroed fields.
+     */
     @Test
-    void testInitialize() {
+    void testInitialize_ShouldContainZeroedState() {
         Struct initialStruct = udafImpl.initialize();
 
         assertNotNull(initialStruct);
@@ -38,8 +60,11 @@ public class WeightedStdDevUdafTest {
         assertEquals(0.0, initialStruct.getFloat64(SUM_WEIGHT_SQUARES));
     }
 
+    /**
+     * Tests that the {@code aggregate} method correctly updates aggregation state for a given input.
+     */
     @Test
-    void testAggregate() {
+    void testAggregate_ShouldUpdateIntermediateStateCorrectly() {
         // Create a mock Pair<Double, Double> for value and weight
         Pair<Double, Double> pair = new Pair<>(5.0, 2.0); // value = 5.0, weight = 2.0
         Struct aggregateStruct = new Struct(STRUCT_SCHEMA)
@@ -57,8 +82,11 @@ public class WeightedStdDevUdafTest {
         assertEquals(20.0 + 2.0 * Math.pow(5.0, 2), result.getFloat64(SUM_WEIGHT_SQUARES), 0.0001);  // SUM_WEIGHT_SQUARES
     }
 
+    /**
+     * Tests that the {@code map} method correctly calculates the weighted standard deviation.
+     */
     @Test
-    void testMap() {
+    void testMap_ValidRecords_ShouldReturnExpectedStdDev() {
         // Create a mock Struct with aggregated values
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 20.0)
@@ -77,8 +105,11 @@ public class WeightedStdDevUdafTest {
         assertEquals(expectedStdDev, stddev, 0.0001);
     }
 
+    /**
+     * Tests that the {@code merge} method correctly combines two intermediate aggregation structs.
+     */
     @Test
-    void testMerge() {
+    void testMerge_ShouldCombineIntermediateStatesCorrectly() {
         // Create two mock Struct objects
         Struct aggOne = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 10.0)
@@ -95,13 +126,16 @@ public class WeightedStdDevUdafTest {
 
         // Validate the merged result
         assertNotNull(merged);
-        assertEquals(25.0, merged.getFloat64(SUM_VALUES), 0.0001);  // SUM_VALUES
-        assertEquals(9.0, merged.getFloat64(SUM_WEIGHTS), 0.0001);  // SUM_WEIGHTS
-        assertEquals(50.0, merged.getFloat64(SUM_WEIGHT_SQUARES), 0.0001);  // SUM_WEIGHT_SQUARES
+        assertEquals(25.0, merged.getFloat64(SUM_VALUES), 0.0001);
+        assertEquals(9.0, merged.getFloat64(SUM_WEIGHTS), 0.0001);
+        assertEquals(50.0, merged.getFloat64(SUM_WEIGHT_SQUARES), 0.0001); 
     }
 
+    /**
+     * Tests that the {@code map} method returns zero when all weights are zero, avoiding division by zero.
+     */
     @Test
-    void testMapWithZeroWeights() {
+    void testMap_ZeroWeights_ShouldReturnZeroStdDev() {
         // Create a mock Struct with zero weights
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 0.0)
