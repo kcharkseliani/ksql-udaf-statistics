@@ -41,7 +41,11 @@ extensions/ksql-udaf-statistics-<version>.jar
 Mount the generated JAR as an extension in ksqlDB:
 
 ```bash
-docker run -it --rm   -v $(pwd)/extensions:/opt/ksqldb-udfs   -e KSQL_KSQL_EXTENSION_DIR=/opt/ksqldb-udfs   -p 8088:8088   confluentinc/ksqldb-server:0.29.0
+docker run -it --rm \
+  -v /path/to/your/repo/extensions:/opt/ksqldb-udfs \
+  -e KSQL_KSQL_EXTENSION_DIR=/opt/ksqldb-udfs \
+  -p 8088:8088 \
+  confluentinc/ksqldb-server:0.29.0
 ```
 
 ### 3. Use in ksqlDB
