@@ -54,7 +54,7 @@ public class WeightedSkewnessUdafTest {
      * Tests that the {@code initialize} method creates a struct with all zero fields.
      */
     @Test
-    void testInitialize() {
+    void testInitialize_ShouldContainZeroedState() {
         Struct initialStruct = udafImpl.initialize();
 
         assertNotNull(initialStruct);
@@ -68,7 +68,7 @@ public class WeightedSkewnessUdafTest {
      * Tests that the {@code aggregate} method correctly updates the intermediate aggregation state.
      */
     @Test
-    void testAggregate() {
+    void testAggregate_ShouldUpdateIntermediateStateCorrectly() {
         Pair<Double, Double> pair = new Pair<>(5.0, 2.0);
         Struct aggregateStruct = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 10.0)
@@ -89,7 +89,7 @@ public class WeightedSkewnessUdafTest {
      * Tests that the {@code map} method correctly computes the weighted skewness.
      */
     @Test
-    void testMap() {
+    void testMap_ValidRecords_ShouldReturnExpectedSkewness() {
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 15.0)
                 .put(SUM_WEIGHTS, 5.0)
@@ -110,7 +110,7 @@ public class WeightedSkewnessUdafTest {
      * Tests that the {@code merge} method combines two intermediate structs correctly.
      */
     @Test
-    void testMerge() {
+    void testMerge_ShouldCombineIntermediateStatesCorrectly() {
         Struct aggOne = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 20.0)
                 .put(SUM_WEIGHTS, 6.0)
@@ -136,7 +136,7 @@ public class WeightedSkewnessUdafTest {
      * Tests that {@code map} returns 0 when weights are all zero, avoiding division by zero.
      */
     @Test
-    void testMapWithZeroWeights() {
+    void testMap_ZeroWeights_ShouldReturnZeroSkewness() {
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 0.0)
                 .put(SUM_WEIGHTS, 0.0)
@@ -153,7 +153,7 @@ public class WeightedSkewnessUdafTest {
      * even if weights are non-zero (e.g. all values are the same).
      */
     @Test
-    void testMapWithZeroVariance() {
+    void testMap_ZeroVariance_ShouldReturnZeroSkewness() {
         // All values are 3.0, weights are non-zero, so variance = 0
         double repeatedValue = 3.0;
         double totalWeight = 6.0;

@@ -107,7 +107,7 @@ public class AllUdafIT {
      */
     @Test
     @Order(1)
-    void testDeployment_shouldContainAllDeclaredUdafs() throws Exception {
+    void testDeployment_ShouldContainAllDeclaredUdafs() throws Exception {
 
         Set<String> expectedFunctionNames = UdafMetadata.getDeclaredUdafNames();
         System.out.println("Expected UDAF names from annotations: " + expectedFunctionNames);

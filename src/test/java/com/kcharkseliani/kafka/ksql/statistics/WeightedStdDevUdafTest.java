@@ -51,7 +51,7 @@ public class WeightedStdDevUdafTest {
      * Tests that the {@code initialize} method returns a struct with zeroed fields.
      */
     @Test
-    void testInitialize() {
+    void testInitialize_ShouldContainZeroedState() {
         Struct initialStruct = udafImpl.initialize();
 
         assertNotNull(initialStruct);
@@ -64,7 +64,7 @@ public class WeightedStdDevUdafTest {
      * Tests that the {@code aggregate} method correctly updates aggregation state for a given input.
      */
     @Test
-    void testAggregate() {
+    void testAggregate_ShouldUpdateIntermediateStateCorrectly() {
         // Create a mock Pair<Double, Double> for value and weight
         Pair<Double, Double> pair = new Pair<>(5.0, 2.0); // value = 5.0, weight = 2.0
         Struct aggregateStruct = new Struct(STRUCT_SCHEMA)
@@ -86,7 +86,7 @@ public class WeightedStdDevUdafTest {
      * Tests that the {@code map} method correctly calculates the weighted standard deviation.
      */
     @Test
-    void testMap() {
+    void testMap_ValidRecords_ShouldReturnExpectedStdDev() {
         // Create a mock Struct with aggregated values
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 20.0)
@@ -109,7 +109,7 @@ public class WeightedStdDevUdafTest {
      * Tests that the {@code merge} method correctly combines two intermediate aggregation structs.
      */
     @Test
-    void testMerge() {
+    void testMerge_ShouldCombineIntermediateStatesCorrectly() {
         // Create two mock Struct objects
         Struct aggOne = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 10.0)
@@ -135,7 +135,7 @@ public class WeightedStdDevUdafTest {
      * Tests that the {@code map} method returns zero when all weights are zero, avoiding division by zero.
      */
     @Test
-    void testMapWithZeroWeights() {
+    void testMap_ZeroWeights_ShouldReturnZeroStdDev() {
         // Create a mock Struct with zero weights
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 0.0)
