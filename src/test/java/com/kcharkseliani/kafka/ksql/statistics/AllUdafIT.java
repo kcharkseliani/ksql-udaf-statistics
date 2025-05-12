@@ -337,7 +337,9 @@ public class AllUdafIT {
             .collect(Collectors.joining(", "));
 
         String createStream = String.format(
-            "{ \"ksql\": \"CREATE STREAM input_values (%s) WITH (kafka_topic='input_values', value_format='json', partitions=1);\", \"streamsProperties\": {} }",
+            "{ \"ksql\": \"CREATE STREAM input_values (%s) " +
+            "WITH (kafka_topic='input_values', value_format='json', partitions=1);\", " +
+            "\"streamsProperties\": {} }",
             streamColumns
         );
     
@@ -361,7 +363,11 @@ public class AllUdafIT {
         String functionArgs = String.join(", ", columnNames);
 
         String createTable = String.format(
-            "{ \"ksql\": \"CREATE TABLE aggregated_result WITH (KAFKA_TOPIC='aggregated_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS SELECT 'singleton' AS id, %s(%s) AS result FROM input_values GROUP BY 'singleton' EMIT CHANGES;\", \"streamsProperties\": {} }",
+            "{ \"ksql\": \"CREATE TABLE aggregated_result " +
+            "WITH (KAFKA_TOPIC='aggregated_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
+            "SELECT 'singleton' AS id, %s(%s) AS result " +
+            "FROM input_values GROUP BY 'singleton' EMIT CHANGES;\", " +
+            "\"streamsProperties\": {} }",
             functionName, functionArgs
         );
     
