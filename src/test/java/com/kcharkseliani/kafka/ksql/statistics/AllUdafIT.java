@@ -158,8 +158,7 @@ public class AllUdafIT {
 
         double expected = computeWeightedStdDev(values, weights);
 
-        runAggregationTest(List.of("val", "weight"), 
-            List.of(values, weights), 
+        runAggregationTest(List.of(values, weights), 
             expected, 
             "STDDEV_WEIGHTED");
     }
@@ -178,8 +177,7 @@ public class AllUdafIT {
 
         double expected = computeWeightedStdDev(values, weights);
 
-        runAggregationTest(List.of("val", "weight"), 
-            List.of(values, weights), 
+        runAggregationTest(List.of(values, weights), 
             expected, 
             "STDDEV_WEIGHTED");
     }
@@ -198,8 +196,7 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runAggregationTest(List.of("val", "weight"), 
-            List.of(values, weights), 
+        runAggregationTest(List.of(values, weights), 
             expected, 
             "SKEWNESS_WEIGHTED");
     }
@@ -218,8 +215,7 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runAggregationTest(List.of("val", "weight"), 
-            List.of(values, weights), 
+        runAggregationTest(List.of(values, weights), 
             expected, 
             "SKEWNESS_WEIGHTED");
     }
@@ -238,8 +234,7 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runAggregationTest(List.of("val", "weight"), 
-            List.of(values, weights), 
+        runAggregationTest(List.of(values, weights), 
             expected, 
             "SKEWNESS_WEIGHTED");
     }
@@ -302,18 +297,17 @@ public class AllUdafIT {
 
     /**
      * Helper method that executes a full integration test against a specified UDAF.
+     * Works with an arbitrary number of input columns for the function.
      * It creates a stream and table, inserts test data, and verifies results through:
      * - Pull queries to ksqlDB
      * - Reading from the output Kafka topic
      *
-     * @param values array of input values
-     * @param weights corresponding array of weights
-     * @param expectedValue expected result from the aggregation
-     * @param functionName the name of the UDAF to apply (e.g. STDDEV_WEIGHTED)
-     * @throws Exception if any step in the test flow fails
+     * @param columnValues List of arrays, each representing the values for a column (must be the same length)
+     * @param expectedValue The expected aggregation result for the specified function
+     * @param functionName The registered name of the UDAF function to invoke (e.g., "SKEWNESS_WEIGHTED")
+     * @throws Exception If any step in the test flow fails (stream creation, data insertion, or verification)
      */
     private void runAggregationTest(
-        List<String> columnNames,
         List<double[]> columnValues,
         double expectedValue,
         String functionName) throws Exception {
@@ -324,6 +318,11 @@ public class AllUdafIT {
                 throw new IllegalArgumentException("All value arrays must be the same length");
             }
         }
+
+        // Auto-generate column names: col1, col2, col3, ...
+        List<String> columnNames = IntStream.range(0, columnValues.size())
+            .mapToObj(i -> "col" + (i + 1))
+            .collect(Collectors.toList());
 
         String host = ksqldb.getHost();
         int port = ksqldb.getMappedPort(8088);
