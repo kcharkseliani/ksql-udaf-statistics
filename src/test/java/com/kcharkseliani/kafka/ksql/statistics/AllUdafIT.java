@@ -11,8 +11,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.List;  
 import java.util.Properties;
 import java.time.Duration;
 
@@ -180,6 +181,26 @@ public class AllUdafIT {
         runAggregationTest(List.of(values, weights), 
             expected, 
             "STDDEV_WEIGHTED");
+    }
+
+    /**
+     * Tests the SKEWNESS UDAF on a representative dataset.
+     * Asserts that the skewness value matches the expected computation.
+     *
+     * @throws Exception if any HTTP or parsing operation fails
+     */
+    @Test
+    void testSkewness_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
+
+        double[] values = {4.0, 7.0, 13.0, 16.0, 20.0};
+
+        double expected = computePopulationSkewness(values);
+
+        runAggregationTest(
+            List.of(values),     // Only values column (no weights)
+            expected,
+            "SKEWNESS"
+        );
     }
 
     /**
@@ -548,5 +569,32 @@ public class AllUdafIT {
         }
     
         return m3 / Math.pow(m2, 1.5);
+    }
+
+    /**
+     * Computes the population skewness of a set of values.
+     * @param values array of numeric values
+     * @return the population skewness, or 0.0 if the variance is zero or input is empty
+     */
+    private static double computePopulationSkewness(double[] values) {
+
+        int n = values.length;
+        if (n == 0) {
+            return 0.0;
+        }
+    
+        double mean = Arrays.stream(values).average().orElse(0.0);
+        double m2 = 0.0, m3 = 0.0;
+    
+        for (double x : values) {
+            double diff = x - mean;
+            m2 += diff * diff;
+            m3 += diff * diff * diff;
+        }
+    
+        m2 /= n;
+        m3 /= n;
+    
+        return m2 == 0 ? 0.0 : m3 / Math.pow(m2, 1.5);
     }
 }
