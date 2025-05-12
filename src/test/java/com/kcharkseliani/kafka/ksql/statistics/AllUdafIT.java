@@ -9,8 +9,10 @@ import java.net.http.HttpResponse;
 
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.time.Duration;
 
@@ -25,8 +27,6 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
-import org.junit.jupiter.api.TestMethodOrder;
-
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.BindMode;
@@ -158,7 +158,10 @@ public class AllUdafIT {
 
         double expected = computeWeightedStdDev(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
+        runAggregationTest(List.of("val", "weight"), 
+            List.of(values, weights), 
+            expected, 
+            "STDDEV_WEIGHTED");
     }
 
     /**
@@ -175,7 +178,10 @@ public class AllUdafIT {
 
         double expected = computeWeightedStdDev(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
+        runAggregationTest(List.of("val", "weight"), 
+            List.of(values, weights), 
+            expected, 
+            "STDDEV_WEIGHTED");
     }
 
     /**
@@ -192,7 +198,10 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
+        runAggregationTest(List.of("val", "weight"), 
+            List.of(values, weights), 
+            expected, 
+            "SKEWNESS_WEIGHTED");
     }
 
     /**
@@ -209,7 +218,10 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
+        runAggregationTest(List.of("val", "weight"), 
+            List.of(values, weights), 
+            expected, 
+            "SKEWNESS_WEIGHTED");
     }
 
     /**
@@ -226,7 +238,10 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
+        runAggregationTest(List.of("val", "weight"), 
+            List.of(values, weights), 
+            expected, 
+            "SKEWNESS_WEIGHTED");
     }
 
     /**
@@ -297,10 +312,18 @@ public class AllUdafIT {
      * @param functionName the name of the UDAF to apply (e.g. STDDEV_WEIGHTED)
      * @throws Exception if any step in the test flow fails
      */
-    private void runWeightedAggregationTest(double[] values, 
-        double[] weights, 
-        double expectedValue, 
+    private void runAggregationTest(
+        List<String> columnNames,
+        List<double[]> columnValues,
+        double expectedValue,
         String functionName) throws Exception {
+
+        int recordCount = columnValues.get(0).length;
+        for (double[] col : columnValues) {
+            if (col.length != recordCount) {
+                throw new IllegalArgumentException("All value arrays must be the same length");
+            }
+        }
 
         String host = ksqldb.getHost();
         int port = ksqldb.getMappedPort(8088);
@@ -309,10 +332,14 @@ public class AllUdafIT {
         HttpClient client = HttpClient.newHttpClient();
     
         // === 1. Create stream ===
-        String createStream =
-            "{ \"ksql\": \"CREATE STREAM input_values (val DOUBLE, weight DOUBLE) " +
-            "WITH (kafka_topic='input_values', value_format='json', partitions=1);\", " +
-            "\"streamsProperties\":{} }";
+        String streamColumns = columnNames.stream()
+            .map(col -> col + " DOUBLE")
+            .collect(Collectors.joining(", "));
+
+        String createStream = String.format(
+            "{ \"ksql\": \"CREATE STREAM input_values (%s) WITH (kafka_topic='input_values', value_format='json', partitions=1);\", \"streamsProperties\": {} }",
+            streamColumns
+        );
     
         HttpResponse<String> streamResponse = client.send(
             HttpRequest.newBuilder()
@@ -331,13 +358,12 @@ public class AllUdafIT {
         Thread.sleep(2_000);
     
         // === 2. Create table with aggregation using specified UDAF ===
-        String createTable =
-            "{ \"ksql\": \"CREATE TABLE aggregated_result WITH (" +
-            "KAFKA_TOPIC='aggregated_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
-            "SELECT 'singleton' AS id, " + functionName + "(val, weight) AS result " +
-            "FROM input_values " +
-            "GROUP BY 'singleton' EMIT CHANGES;\"," +
-            " \"streamsProperties\": {} }";
+        String functionArgs = String.join(", ", columnNames);
+
+        String createTable = String.format(
+            "{ \"ksql\": \"CREATE TABLE aggregated_result WITH (KAFKA_TOPIC='aggregated_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS SELECT 'singleton' AS id, %s(%s) AS result FROM input_values GROUP BY 'singleton' EMIT CHANGES;\", \"streamsProperties\": {} }",
+            functionName, functionArgs
+        );
     
         HttpResponse<String> tableResponse = client.send(
             HttpRequest.newBuilder()
@@ -357,9 +383,16 @@ public class AllUdafIT {
         // === 3. Insert data ===
         // Build INSERT statements dynamically
         StringBuilder insertStatements = new StringBuilder();
-        for (int i = 0; i < values.length; i++) {
-            insertStatements.append("INSERT INTO input_values (val, weight) VALUES (")
-                            .append(values[i]).append(", ").append(weights[i]).append("); ");
+        for (int i = 0; i < recordCount; i++) {
+            final int rowIndex = i;
+
+            insertStatements.append("INSERT INTO input_values (")
+                .append(String.join(", ", columnNames))
+                .append(") VALUES (")
+                .append(IntStream.range(0, columnNames.size())
+                                .mapToObj(j -> String.valueOf(columnValues.get(j)[rowIndex]))
+                                .collect(Collectors.joining(", ")))
+                .append("); ");
         }
     
         // Build the final JSON string
