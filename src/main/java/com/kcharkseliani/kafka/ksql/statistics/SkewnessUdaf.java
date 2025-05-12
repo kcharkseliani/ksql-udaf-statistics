@@ -61,7 +61,15 @@ public class SkewnessUdaf {
         aggregateSchema = "STRUCT<COUNT bigint, SUM double, SUM_SQUARES double, SUM_CUBES double>"
     )
     public static Udaf<Double, Struct, Double> createUdaf() {
-        return new SkewnessUdafImpl();
+        return new SkewnessUdafImpl(false);
+    }
+
+    @UdafFactory(
+        description = "Calculates skewness of a series of values with optional bias correction",
+        aggregateSchema = "STRUCT<COUNT bigint, SUM double, SUM_SQUARES double, SUM_CUBES double>"
+    )
+    public static Udaf<Double, Struct, Double> createUdaf(boolean isSample) {
+        return new SkewnessUdafImpl(isSample);
     }
 
     /**
@@ -71,6 +79,12 @@ public class SkewnessUdaf {
      * using the third standardized moment formula.
      */
     private static class SkewnessUdafImpl implements Udaf<Double, Struct, Double> {
+
+        private final boolean isSample;
+
+        public SkewnessUdafImpl(boolean isSample) {
+            this.isSample = isSample;
+        }
 
         /**
          * Initializes the aggregation state with zeroed values.
@@ -139,7 +153,14 @@ public class SkewnessUdaf {
                         - 3 * mean * (aggregate.getFloat64(SUM_SQUARES) / count)
                         + 2 * Math.pow(mean, 3);
 
-            return m3 / Math.pow(Math.max(variance, 0.0), 1.5);
+            double skewness = m3 / Math.pow(Math.max(variance, 0.0), 1.5);
+
+            if (isSample) {
+                // Apply sample correction factor
+                skewness *= (count * count) / ((count - 1) * (count - 2));
+            }
+
+            return skewness;
         }
 
         /**
