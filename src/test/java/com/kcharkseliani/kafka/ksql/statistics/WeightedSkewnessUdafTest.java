@@ -55,6 +55,7 @@ public class WeightedSkewnessUdafTest {
      */
     @Test
     void testInitialize_ShouldContainZeroedState() {
+
         Struct initialStruct = udafImpl.initialize();
 
         assertNotNull(initialStruct);
@@ -69,6 +70,7 @@ public class WeightedSkewnessUdafTest {
      */
     @Test
     void testAggregate_ShouldUpdateIntermediateStateCorrectly() {
+        
         Pair<Double, Double> pair = new Pair<>(5.0, 2.0);
         Struct aggregateStruct = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 10.0)

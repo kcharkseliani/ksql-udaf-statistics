@@ -124,6 +124,7 @@ public class WeightedSkewnessUdaf {
          */
         @Override
         public Double map(Struct aggregate) {
+
             // If no data was aggregated, return 0.0 as the skewness
             double sumValues = aggregate.getFloat64(SUM_VALUES);
             double sumWeights = aggregate.getFloat64(SUM_WEIGHTS);
@@ -162,6 +163,7 @@ public class WeightedSkewnessUdaf {
          */
         @Override
         public Struct merge(Struct aggOne, Struct aggTwo) {
+            
             // Merging two accumulators by summing their respective values
             double sumValues = aggOne.getFloat64(SUM_VALUES) + aggTwo.getFloat64(SUM_VALUES);
             double sumWeights = aggOne.getFloat64(SUM_WEIGHTS) + aggTwo.getFloat64(SUM_WEIGHTS);
