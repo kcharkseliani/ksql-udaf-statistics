@@ -120,7 +120,27 @@ public class KurtosisUdaf {
 
         @Override
         public Double map(Struct aggregate) {
-            return 0.0;
+
+            long count = aggregate.getInt64(COUNT);
+
+            if (count == 0) {
+                return 0.0;
+            }
+
+            double mean = aggregate.getFloat64(SUM) / count;
+            double m2 = (aggregate.getFloat64(SUM_SQUARES) / count) - mean * mean;
+            double m4 = (aggregate.getFloat64(SUM_QUARTIC) / count)
+                        - 4 * mean * (aggregate.getFloat64(SUM_CUBES) / count)
+                        + 6 * mean * mean * (aggregate.getFloat64(SUM_SQUARES) / count)
+                        - 3 * Math.pow(mean, 4);
+
+            if (m2 == 0.0) {
+                return 0.0;
+            }
+            
+            double kurtosis = m4 / (m2 * m2);
+
+            return kurtosis;
         }
 
         @Override
