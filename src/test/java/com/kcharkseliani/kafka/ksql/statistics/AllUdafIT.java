@@ -248,6 +248,23 @@ public class AllUdafIT {
     }
 
     /**
+     * Tests the SKEWNESS_WEIGHTED UDAF with bias correction and < 3 samples.
+     * Asserts that the result is NaN.
+     *
+     * @throws Exception if setup or validation fails
+     */
+    @Test
+    void testSkewnessWeighted_InsufficientDataForSample_ShouldReturnZero() throws Exception {
+
+        double[] values = {1, 2};
+
+        runAggregationTest(List.of(values), 
+            Double.NaN, 
+            "SKEWNESS",
+            true);
+    }
+
+    /**
      * Tests the SKEWNESS_WEIGHTED UDAF where all weights are zero.
      * Asserts that the result is zero and does not produce NaN or error.
      *
@@ -500,10 +517,23 @@ public class AllUdafIT {
     
         JsonNode root = new ObjectMapper().readTree(queryResponse.body());       
         JsonNode resultValue = root.get(1).path("row").path("columns").get(1);
-        double actual = resultValue.asDouble();
+
+        double actual;
+
+        // A 'null' in ksqlDB becomes NaN for validation purposes
+        if (resultValue.isNull()) {
+            actual = Double.NaN;
+        } else {
+            actual = resultValue.asDouble();
+        }
     
-        Assertions.assertEquals(expectedValue, actual, 0.0001,
-            "Expected " + expectedValue + " but got " + actual);
+        if (Double.isNaN(expectedValue)) {
+            Assertions.assertTrue(Double.isNaN(actual), "Expected NaN but got " + actual);
+        } 
+        else {
+            Assertions.assertEquals(expectedValue, actual, 0.0001, 
+                "Expected " + expectedValue + " but got " + actual);
+        }
 
         // === 5. Consume from output Kafka topic to verify ===
         Properties props = new Properties();
@@ -528,7 +558,16 @@ public class AllUdafIT {
                     if (value.contains("RESULT")) {
                         ObjectMapper mapper = new ObjectMapper();
                         JsonNode json = mapper.readTree(value);
-                        actualFromKafka = json.path("RESULT").asDouble();
+                        JsonNode resultNode = json.path("RESULT");
+
+                        // A 'null' in Kafka becomes NaN for validation purposes
+                        if (resultNode.isNull()) {
+                            actualFromKafka = Double.NaN;
+                        } 
+                        else {
+                            actualFromKafka = resultNode.asDouble();
+                        }
+                        
                         found = true;
                         break;
                     }
@@ -536,8 +575,13 @@ public class AllUdafIT {
             }
 
             Assertions.assertTrue(found, "Did not receive aggregated output from Kafka topic");
-            Assertions.assertEquals(expectedValue, actualFromKafka, 0.0001,
-                "Expected value from Kafka " + expectedValue + " but got " + actualFromKafka);
+            if (Double.isNaN(expectedValue)) {
+                Assertions.assertTrue(Double.isNaN(actualFromKafka), "Expected NaN from Kafka but got " + actualFromKafka);
+            } 
+            else {
+                Assertions.assertEquals(expectedValue, actualFromKafka, 0.0001, 
+                    "Expected value from Kafka " + expectedValue + " but got " + actualFromKafka);
+            }
         }
     }
 
