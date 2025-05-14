@@ -22,15 +22,28 @@ import java.util.Arrays;
  */
 public class KurtosisUdafTest {
 
+    /** Instance of the kurtosis UDAF under test. */
     private Udaf<Double, Struct, Double> udafImpl;
+
+    /** Instance of the sample kurtosis UDAF under test. */
     private Udaf<Double, Struct, Double> udafImplSample;
 
+    /** Field name for the internal aggregation state of the number of observations. */
     private static final String COUNT = "COUNT";
+
+    /** Field name for the internal aggregation state of the sum of values. */
     private static final String SUM = "SUM";
+
+    /** Field name for the internal aggregation state of the sum of squared values. */
     private static final String SUM_SQUARES = "SUM_SQUARES";
+
+    /** Field name for the internal aggregation state of the sum of cubed values. */
     private static final String SUM_CUBES = "SUM_CUBES";
+
+    /** Field name for the internal aggregation state of the sum of quartic powers of values. */
     private static final String SUM_QUARTIC = "SUM_QUARTIC";
 
+    /** Schema used to represent the aggregation state. */
     private static final Schema STRUCT_SCHEMA = SchemaBuilder.struct().optional()
         .field(COUNT, Schema.OPTIONAL_INT64_SCHEMA)
         .field(SUM, Schema.OPTIONAL_FLOAT64_SCHEMA)
@@ -39,15 +52,21 @@ public class KurtosisUdafTest {
         .field(SUM_QUARTIC, Schema.OPTIONAL_FLOAT64_SCHEMA)
         .build();
 
+    /** Initializes a new UDAF instance before each test. */
     @BeforeEach
     void setUp() {
         udafImpl = KurtosisUdaf.createUdaf();
         udafImplSample = KurtosisUdaf.createUdaf(true);
     }
 
+    /**
+     * Verifies that the {@code initialize} method returns a struct with all zero fields.
+     */
     @Test
     void testInitialize_ShouldReturnZeroedStruct() {
+
         Struct s = udafImpl.initialize();
+
         assertEquals(0L, s.getInt64(COUNT));
         assertEquals(0.0, s.getFloat64(SUM));
         assertEquals(0.0, s.getFloat64(SUM_SQUARES));
@@ -55,8 +74,12 @@ public class KurtosisUdafTest {
         assertEquals(0.0, s.getFloat64(SUM_QUARTIC));
     }
 
+    /**
+     * Verifies that {@code aggregate} correctly updates intermediate state given a new value.
+     */
     @Test
     void testAggregate_ShouldUpdateIntermediateStateCorrectly() {
+
         Struct current = new Struct(STRUCT_SCHEMA)
             .put(COUNT, 2L)
             .put(SUM, 4.0)
@@ -75,8 +98,12 @@ public class KurtosisUdafTest {
         assertEquals(82.0 + Math.pow(input, 4), result.getFloat64(SUM_QUARTIC), 0.0001);
     }
 
+    /**
+     * Verifies that {@code map} returns the correct population kurtosis for valid data.
+     */
     @Test
     void testMap_PopulationKurtosis_ShouldReturnCorrectValue() {
+
         Struct s = new Struct(STRUCT_SCHEMA)
             .put(COUNT, 5L)
             .put(SUM, 15.0)
@@ -94,12 +121,17 @@ public class KurtosisUdafTest {
         assertEquals(expected, actual, 0.0001);
     }
 
+    /**
+     * Verifies that {@code map} returns the correct sample kurtosis for valid data.
+     */
     @Test
     void testMap_WithSampleCorrection_ShouldReturnCorrectSampleKurtosis() {
+
         double[] values = {1.0, 2.0, 3.0, 4.0, 5.0};
 
-        // Compute expected using Apache Commons Math
-        Kurtosis kurtosis = new Kurtosis(); // by default, bias correction (sample kurtosis) is applied
+        // Compute expected using Apache Commons Math;
+        // by default, bias correction (sample kurtosis) is applied
+        Kurtosis kurtosis = new Kurtosis();
         double expected = kurtosis.evaluate(values);
 
         // Build aggregate manually
@@ -119,8 +151,12 @@ public class KurtosisUdafTest {
         assertEquals(expected, actual, 0.0001);
     }
 
+    /**
+     * Verifies that {@code map} returns 0.0 if the count is zero.
+     */
     @Test
     void testMap_ZeroCount_ShouldReturnZero() {
+
         Struct s = new Struct(STRUCT_SCHEMA)
             .put(COUNT, 0L)
             .put(SUM, 0.0)
@@ -131,20 +167,31 @@ public class KurtosisUdafTest {
         assertEquals(0.0, udafImpl.map(s), 0.0001);
     }
 
+    /**
+     * Verifies that {@code map} returns NaN for sample kurtosis if count < 4.
+     */
     @Test
     void testMap_InsufficientDataForSample_ShouldReturnNaN() {
+
         Struct s = new Struct(STRUCT_SCHEMA)
-            .put(COUNT, 3L) // less than 4 for sample
+            // Less than 4 for sample kurtosis is not allowed
+            .put(COUNT, 3L)
             .put(SUM, 9.0)
             .put(SUM_SQUARES, 27.0)
             .put(SUM_CUBES, 81.0)
             .put(SUM_QUARTIC, 243.0);
 
-        assertTrue(Double.isNaN(udafImplSample.map(s)));
+        double result = udafImplSample.map(s);
+
+        assertTrue(Double.isNaN(result), "Expected NaN for sample kurtosis with count < 4");
     }
 
+    /**
+     * Verifies that {@code map} returns 0 if the variance is zero (all values are the same).
+     */
     @Test
     void testMap_ZeroVariance_ShouldReturnZero() {
+
         double repeated = 5.0;
         double count = 4.0;
         double sum = repeated * count;
@@ -162,8 +209,12 @@ public class KurtosisUdafTest {
         assertEquals(0.0, udafImpl.map(s), 0.0001);
     }
 
+    /**
+     * Verifies that {@code merge} correctly combines two aggregation states.
+     */
     @Test
     void testMerge_ShouldCombineIntermediateStatesCorrectly() {
+        
         Struct a = new Struct(STRUCT_SCHEMA)
             .put(COUNT, 2L)
             .put(SUM, 10.0)

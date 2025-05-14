@@ -114,6 +114,9 @@ public class SkewnessUdafTest {
         assertEquals(expected, result, 0.0001);
     }
 
+    /**
+     * Verifies that {@code map} returns the correct sample skewness for valid data.
+     */
     @Test
     void testMap_WithSampleCorrection_ShouldReturnCorrectSampleSkewness() {
 
@@ -156,7 +159,8 @@ public class SkewnessUdafTest {
     void testMap_InsufficientDataForSample_ShouldReturnNaN() {
 
         Struct aggregate = new Struct(STRUCT_SCHEMA)
-            .put(COUNT, 2L)               // Less than 3
+            // Less than 3 for sample skewness is not allowed
+            .put(COUNT, 2L)
             .put(SUM, 10.0)
             .put(SUM_SQUARES, 52.0)
             .put(SUM_CUBES, 260.0);
@@ -167,7 +171,7 @@ public class SkewnessUdafTest {
     }
 
     /**
-     * Verifies that {@code map} returns 0 if the variance is zero.
+     * Verifies that {@code map} returns 0 if the variance is zero (all values are the same).
      */
     @Test
     void testMap_ZeroVariance_ShouldReturnZero() {
