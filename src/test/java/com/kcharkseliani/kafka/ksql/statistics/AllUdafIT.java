@@ -368,6 +368,7 @@ public class AllUdafIT {
      * @param columnValues List of arrays, each representing the values for a column (must be the same length)
      * @param expectedValue The expected aggregation result for the specified function
      * @param functionName The registered name of the UDAF function to invoke (e.g., "SKEWNESS_WEIGHTED")
+     * @param constructorArgs Optional arguments passed to the UDAF constructor (e.g., flags like isSample)
      * @throws Exception If any step in the test flow fails (stream creation, data insertion, or verification)
      */
     private void runAggregationTest(
@@ -376,6 +377,7 @@ public class AllUdafIT {
         String functionName,
         Object... constructorArgs) throws Exception {
 
+        // Building a comma-separated string of optional constructor arguments
         String argLiterals = Stream.of(constructorArgs)
             .map(arg -> {
                 if (arg instanceof String) return "'" + arg + "'";
@@ -384,6 +386,7 @@ public class AllUdafIT {
             })
             .collect(Collectors.joining(", "));
 
+        // Making sure the numbers of values in each column supplied are the same
         int recordCount = columnValues.get(0).length;
         for (double[] col : columnValues) {
             if (col.length != recordCount) {

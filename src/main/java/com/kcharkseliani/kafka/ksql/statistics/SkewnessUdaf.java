@@ -64,6 +64,13 @@ public class SkewnessUdaf {
         return new SkewnessUdafImpl(false);
     }
 
+    /**
+	 * Factory method to register the skewness UDAF with ksqlDB, allowing optional bias correction.
+	 *
+	 * @param isSample if true, computes the sample skewness with bias correction (Bessel's correction); 
+	 *                 requires at least 3 observations to produce a non-NaN result.
+	 * @return a new instance of the skewness UDAF with the specified bias correction behavior
+	 */
     @UdafFactory(
         description = "Calculates skewness of a series of values with optional bias correction",
         aggregateSchema = "STRUCT<COUNT bigint, SUM double, SUM_SQUARES double, SUM_CUBES double>"
@@ -80,8 +87,15 @@ public class SkewnessUdaf {
      */
     private static class SkewnessUdafImpl implements Udaf<Double, Struct, Double> {
 
+        /** Flag determining if population or sample (with bias correction) skewness is computed */
         private final boolean isSample;
 
+        /**
+         * Constructs an instance of the Skewness UDAF implementation.
+         *
+         * @param isSample flag that decides whether to compute sample skewness or population skewness;
+         *                 requires at least 3 observations to produce a non-NaN result.
+         */
         public SkewnessUdafImpl(boolean isSample) {
             this.isSample = isSample;
         }
@@ -131,7 +145,7 @@ public class SkewnessUdaf {
          * Computes the final skewness value from the aggregated state.
          *
          * @param aggregate the aggregation state
-         * @return the skewness, or 0 if count or variance is zero
+         * @return the skewness, 0 if count or variance is zero, NaN for sample skewness and count < 3
          */
         @Override
         public Double map(Struct aggregate) {
@@ -141,6 +155,8 @@ public class SkewnessUdaf {
             if (count == 0) {
                 return 0.0;
             }
+            
+            // At least 3 data points required to calculate sample skewness
             else if (isSample && count < 3) {
                 return Double.NaN;
             }
