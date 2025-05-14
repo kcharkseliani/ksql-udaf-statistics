@@ -18,14 +18,21 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class SkewnessUdafTest {
 
-    /** Instance of the UDAF under test. */
+    /** Instance of the skewness UDAF under test. */
     private Udaf<Double, Struct, Double> udafImpl;
+
+    /** Instance of the sample skewness UDAF under test. */
+    private Udaf<Double, Struct, Double> udafImplSample;
+
     /** Field name for the internal aggregation state of the number of observations. */
     private static final String COUNT = "COUNT";
+
     /** Field name for the internal aggregation state of the sum of values. */
     private static final String SUM = "SUM";
+
     /** Field name for the internal aggregation state of the sum of squared values. */
     private static final String SUM_SQUARES = "SUM_SQUARES";
+
     /** Field name for the internal aggregation state of the sum of cubed values. */
     private static final String SUM_CUBES = "SUM_CUBES";
 
@@ -41,6 +48,7 @@ public class SkewnessUdafTest {
     @BeforeEach
     void setUp() {
         udafImpl = SkewnessUdaf.createUdaf();
+        udafImplSample = SkewnessUdaf.createUdaf(true);
     }
 
     /**
@@ -106,6 +114,26 @@ public class SkewnessUdafTest {
         assertEquals(expected, result, 0.0001);
     }
 
+    @Test
+    void testMap_WithSampleCorrection_ShouldReturnCorrectSampleSkewness() {
+
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+            .put(COUNT, 5L)
+            .put(SUM, 60.0)
+            .put(SUM_SQUARES, 890.0)
+            .put(SUM_CUBES, 14700.0);
+
+        double count = 5;
+        double mean = 60.0 / count;
+        double variance = ((890.0 / count) - Math.pow(mean, 2)) * (count / (count - 1.0));
+        double m3 = (14700.0 / count) - 3 * mean * (890.0 / count) + 2 * Math.pow(mean, 3);
+        double expectedSkew = m3 / Math.pow(variance, 1.5) * 
+            (count * count) / ((count - 1.0) * (count - 2.0));
+
+        double result = udafImplSample.map(aggregate);
+        assertEquals(expectedSkew, result, 0.0001);
+    }
+
     /**
      * Verifies that {@code map} returns 0.0 if the count is zero.
      */
@@ -119,6 +147,23 @@ public class SkewnessUdafTest {
             .put(SUM_CUBES, 0.0);
 
         assertEquals(0.0, udafImpl.map(aggregate), 0.0001);
+    }
+
+    /**
+     * Verifies that {@code map} returns NaN for sample skewness if count < 3.
+     */
+    @Test
+    void testMap_InsufficientDataForSample_ShouldReturnNaN() {
+
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+            .put(COUNT, 2L)               // Less than 3
+            .put(SUM, 10.0)
+            .put(SUM_SQUARES, 52.0)
+            .put(SUM_CUBES, 260.0);
+
+        double result = udafImplSample.map(aggregate);
+
+        assertTrue(Double.isNaN(result), "Expected NaN for sample skewness with count < 3");
     }
 
     /**

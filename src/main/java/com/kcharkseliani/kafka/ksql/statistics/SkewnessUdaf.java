@@ -141,6 +141,9 @@ public class SkewnessUdaf {
             if (count == 0) {
                 return 0.0;
             }
+            else if (isSample && count < 3) {
+                return Double.NaN;
+            }
 
             double mean = aggregate.getFloat64(SUM) / count;
             double variance = (aggregate.getFloat64(SUM_SQUARES) / count) - Math.pow(mean, 2);
