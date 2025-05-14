@@ -126,6 +126,10 @@ public class KurtosisUdaf {
             if (count == 0) {
                 return 0.0;
             }
+            // At least 4 data points required to calculate sample kurtosis
+            else if (isSample && count < 4) {
+                return Double.NaN;
+            }
 
             double mean = aggregate.getFloat64(SUM) / count;
             double m2 = (aggregate.getFloat64(SUM_SQUARES) / count) - mean * mean;
@@ -134,11 +138,23 @@ public class KurtosisUdaf {
                         + 6 * mean * mean * (aggregate.getFloat64(SUM_SQUARES) / count)
                         - 3 * Math.pow(mean, 4);
 
+            if (isSample) {
+                m2 *= (count / (count - 1.0));
+            }
+
             if (m2 == 0.0) {
                 return 0.0;
             }
-            
+
             double kurtosis = m4 / (m2 * m2);
+
+            if (isSample) {
+                // Apply sample correction factor
+                kurtosis = ((count * count * (count + 1.0)) / ((count - 1.0) 
+                    * (count - 2.0) * (count - 3.0))) * kurtosis
+                    - (3.0 * (count - 1.0) * (count - 1.0)) 
+                    / ((count - 2.0) * (count - 3.0));
+            }
 
             return kurtosis;
         }

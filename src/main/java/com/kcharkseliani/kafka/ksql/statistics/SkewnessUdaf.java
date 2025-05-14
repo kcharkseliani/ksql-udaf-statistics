@@ -155,7 +155,6 @@ public class SkewnessUdaf {
             if (count == 0) {
                 return 0.0;
             }
-            
             // At least 3 data points required to calculate sample skewness
             else if (isSample && count < 3) {
                 return Double.NaN;
