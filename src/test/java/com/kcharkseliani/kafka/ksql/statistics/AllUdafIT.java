@@ -28,6 +28,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
 import org.apache.commons.math3.stat.descriptive.moment.Skewness;
+import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -152,7 +153,7 @@ public class AllUdafIT {
      * Tests the STDDEV_WEIGHTED UDAF on a set of weighted values.
      * Asserts that the standard deviation value matches the expected computation.
      *
-     * @throws Exception if any ksqlDB or HTTP operation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testStddevWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
@@ -171,7 +172,7 @@ public class AllUdafIT {
      * Tests the STDDEV_WEIGHTED UDAF on all-zero values and weights.
      * Asserts that the result is zero and does not produce NaN or error.
      *
-     * @throws Exception if the test setup or query fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testStddevWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
@@ -190,7 +191,7 @@ public class AllUdafIT {
      * Tests the SKEWNESS UDAF on a representative dataset.
      * Asserts that the skewness value matches the expected computation.
      *
-     * @throws Exception if any HTTP or parsing operation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testSkewness_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
@@ -210,7 +211,7 @@ public class AllUdafIT {
      * Tests the SKEWNESS UDAF with bias correction (sample skewness) on a representative dataset.
      * Asserts that the skewness value matches the expected computation.
      *
-     * @throws Exception if any HTTP or parsing operation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testSkewness_WithBiasCorrection_ShouldAggregateAll() throws Exception {
@@ -232,7 +233,7 @@ public class AllUdafIT {
      * Tests the SKEWNESS_WEIGHTED UDAF on a representative weighted dataset.
      * Asserts that the skewness value matches the expected computation.
      *
-     * @throws Exception if any HTTP or parsing operation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testSkewnessWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
@@ -248,13 +249,13 @@ public class AllUdafIT {
     }
 
     /**
-     * Tests the SKEWNESS_WEIGHTED UDAF with bias correction and < 3 samples.
+     * Tests the SKEWNESS UDAF with bias correction and < 3 samples.
      * Asserts that the result is NaN.
      *
-     * @throws Exception if setup or validation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
-    void testSkewnessWeighted_InsufficientDataForSample_ShouldReturnZero() throws Exception {
+    void testSkewness_InsufficientDataForSample_ShouldReturnNaN() throws Exception {
 
         double[] values = {1, 2};
 
@@ -268,7 +269,7 @@ public class AllUdafIT {
      * Tests the SKEWNESS_WEIGHTED UDAF where all weights are zero.
      * Asserts that the result is zero and does not produce NaN or error.
      *
-     * @throws Exception if setup or validation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testSkewnessWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
@@ -284,10 +285,26 @@ public class AllUdafIT {
     }
 
     /**
+     * Tests the SKEWNESS UDAF on values with zero variance.
+     * Asserts that the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testSkewness_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
+
+        double[] values = {1, 1, 1};
+
+        runAggregationTest(List.of(values), 
+            0.0, 
+            "SKEWNESS");
+    }
+
+    /**
      * Tests the SKEWNESS_WEIGHTED UDAF on values with zero variance.
      * Asserts that the result is zero and does not produce NaN or error.
      *
-     * @throws Exception if ksqlDB interaction fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testSkewnessWeighted_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
@@ -300,6 +317,81 @@ public class AllUdafIT {
         runAggregationTest(List.of(values, weights), 
             expected, 
             "SKEWNESS_WEIGHTED");
+    }
+
+    /**
+     * Tests the KURTOSIS UDAF on a representative dataset.
+     * Asserts that the kurtosis value matches the expected computation.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosis_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
+
+        double[] values = {14.0, 7.0, 13.0, 16.0, 20.0, 15.0};
+
+        double expected = computePopulationKurtosis(values);
+
+        runAggregationTest(
+            List.of(values),
+            expected,
+            "KURTOSIS"
+        );
+    }
+
+    /**
+     * Tests the KURTOSIS UDAF with bias correction (sample kurtosis) on a representative dataset.
+     * Asserts that the kurtosis value matches the expected computation.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosis_WithBiasCorrection_ShouldAggregateAll() throws Exception {
+
+        double[] values = {14.0, 7.0, 13.0, 16.0, 20.0, 15.0};
+
+        // This computes sample skewness
+        double expected = new Kurtosis().evaluate(values);
+
+        runAggregationTest(
+            List.of(values),
+            expected,
+            "KURTOSIS",
+            true
+        );
+    }
+
+    /**
+     * Tests the KURTOSIS UDAF with bias correction and < 4 samples.
+     * Asserts that the result is NaN.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosis_InsufficientDataForSample_ShouldReturnNaN() throws Exception {
+
+        double[] values = {1, 2};
+
+        runAggregationTest(List.of(values), 
+            Double.NaN, 
+            "KURTOSIS",
+            true);
+    }
+
+    /**
+     * Tests the KURTOSIS UDAF on values with zero variance.
+     * Asserts that the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosis_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
+
+        double[] values = {1, 1, 1, 1};
+
+        runAggregationTest(List.of(values), 
+            0.0, 
+            "KURTOSIS");
     }
 
     /**
@@ -682,5 +774,34 @@ public class AllUdafIT {
         m3 /= n;
     
         return m2 == 0 ? 0.0 : m3 / Math.pow(m2, 1.5);
+    }
+
+    /**
+     * Computes the population kurtosis of a set of values.
+     * @param values array of numeric values
+     * @return the population kurtosis, or 0.0 if the variance is zero or input is empty
+     */
+    private static double computePopulationKurtosis(double[] values) {
+
+        int n = values.length;
+        if (n == 0) {
+            return 0.0;
+        }
+
+        double mean = Arrays.stream(values).average().orElse(0.0);
+        double m2 = 0.0, m4 = 0.0;
+
+        for (double x : values) {
+            double diff = x - mean;
+            double diffSq = diff * diff;
+            m2 += diffSq;
+            // (x - mean)^4
+            m4 += diffSq * diffSq;
+        }
+
+        m2 /= n;
+        m4 /= n;
+
+        return m2 == 0 ? 0.0 : m4 / (m2 * m2);
     }
 }
