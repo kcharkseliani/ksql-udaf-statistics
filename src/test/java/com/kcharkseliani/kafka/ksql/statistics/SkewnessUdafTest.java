@@ -91,16 +91,16 @@ public class SkewnessUdafTest {
     void testMap_ValidData_ShouldReturnExpectedSkewness() {
 
         Struct aggregate = new Struct(STRUCT_SCHEMA)
-            .put(COUNT, 3L)
-            .put(SUM, 9.0)
-            .put(SUM_SQUARES, 35.0)
-            .put(SUM_CUBES, 123.0);
+            .put(COUNT, 5L)
+            .put(SUM, 60.0)
+            .put(SUM_SQUARES, 890.0)
+            .put(SUM_CUBES, 14700.0);
 
         Double result = udafImpl.map(aggregate);
 
-        double mean = 9.0 / 3;
-        double variance = (35.0 / 3) - Math.pow(mean, 2);
-        double m3 = (123.0 / 3) - 3 * mean * (35.0 / 3) + 2 * Math.pow(mean, 3);
+        double mean = 60.0 / 5;
+        double variance = (890.0 / 5) - Math.pow(mean, 2);
+        double m3 = (14700.0 / 5) - 3 * mean * (890.0 / 5) + 2 * Math.pow(mean, 3);
         double expected = m3 / Math.pow(variance, 1.5);
 
         assertEquals(expected, result, 0.0001);

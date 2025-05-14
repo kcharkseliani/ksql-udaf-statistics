@@ -10,6 +10,7 @@ import java.net.http.HttpResponse;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,6 +26,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
+
+import org.apache.commons.math3.stat.descriptive.moment.Skewness;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -204,6 +207,28 @@ public class AllUdafIT {
     }
 
     /**
+     * Tests the SKEWNESS UDAF with bias correction (sample skewness) on a representative dataset.
+     * Asserts that the skewness value matches the expected computation.
+     *
+     * @throws Exception if any HTTP or parsing operation fails
+     */
+    @Test
+    void testSkewness_WithBiasCorrection_ShouldAggregateAll() throws Exception {
+
+        double[] values = {4.0, 7.0, 13.0, 16.0, 20.0};
+
+        // This computes sample skewness
+        double expected = new Skewness().evaluate(values);
+
+        runAggregationTest(
+            List.of(values),     // Only values column (no weights)
+            expected,
+            "SKEWNESS",
+            true
+        );
+    }
+
+    /**
      * Tests the SKEWNESS_WEIGHTED UDAF on a representative weighted dataset.
      * Asserts that the skewness value matches the expected computation.
      *
@@ -331,7 +356,16 @@ public class AllUdafIT {
     private void runAggregationTest(
         List<double[]> columnValues,
         double expectedValue,
-        String functionName) throws Exception {
+        String functionName,
+        Object... constructorArgs) throws Exception {
+
+        String argLiterals = Stream.of(constructorArgs)
+            .map(arg -> {
+                if (arg instanceof String) return "'" + arg + "'";
+                else if (arg instanceof Boolean) return (Boolean) arg ? "true" : "false";
+                else return String.valueOf(arg);
+            })
+            .collect(Collectors.joining(", "));
 
         int recordCount = columnValues.get(0).length;
         for (double[] col : columnValues) {
@@ -381,6 +415,11 @@ public class AllUdafIT {
     
         // === 2. Create table with aggregation using specified UDAF ===
         String functionArgs = String.join(", ", columnNames);
+
+        // If constructor args exist, append them
+        if (!argLiterals.isEmpty()) {
+            functionArgs += ", " + argLiterals;
+        }
 
         String createTable = String.format(
             "{ \"ksql\": \"CREATE TABLE aggregated_result " +

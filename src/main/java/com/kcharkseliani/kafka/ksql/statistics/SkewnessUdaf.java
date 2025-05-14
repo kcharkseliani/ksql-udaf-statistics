@@ -145,6 +145,10 @@ public class SkewnessUdaf {
             double mean = aggregate.getFloat64(SUM) / count;
             double variance = (aggregate.getFloat64(SUM_SQUARES) / count) - Math.pow(mean, 2);
 
+            if (isSample) {
+                variance *= (count / (count - 1.0));
+            }
+
             if (variance == 0.0) {
                 return 0.0;
             }
@@ -157,7 +161,7 @@ public class SkewnessUdaf {
 
             if (isSample) {
                 // Apply sample correction factor
-                skewness *= (count * count) / ((count - 1) * (count - 2));
+                skewness *= (count * count) / ((count - 1.0) * (count - 2.0));
             }
 
             return skewness;
