@@ -85,7 +85,13 @@ public class WeightedKurtosisUdaf {
          */
         @Override
         public Struct initialize() {
-            throw new UnsupportedOperationException("initialize() is not yet implemented");
+
+            return new Struct(STRUCT_SCHEMA)
+                .put(SUM_VALUES, 0.0)
+                .put(SUM_WEIGHTS, 0.0)
+                .put(SUM_WEIGHT_SQUARES, 0.0)
+                .put(SUM_WEIGHT_CUBES, 0.0)
+                .put(SUM_WEIGHT_QUARTIC, 0.0);
         }
 
         /**
@@ -97,9 +103,21 @@ public class WeightedKurtosisUdaf {
          */
         @Override
         public Struct aggregate(Pair<Double, Double> newValue, Struct aggregateValue) {
-            throw new UnsupportedOperationException(
-                "aggregate(Pair<Double, Double> newValue, Struct aggregateValue)" + 
-                " is not yet implemented");
+            
+            // Extracting values from the Pair and the current state of the accumulator (Struct)
+            double value = newValue.getLeft();
+            double weight = newValue.getRight();
+
+            // Returning a new Struct with updated running sums
+            return new Struct(STRUCT_SCHEMA)
+                .put(SUM_VALUES, aggregateValue.getFloat64(SUM_VALUES) + weight * value)
+                .put(SUM_WEIGHTS, aggregateValue.getFloat64(SUM_WEIGHTS) + weight)
+                .put(SUM_WEIGHT_SQUARES, aggregateValue
+                    .getFloat64(SUM_WEIGHT_SQUARES) + weight * value * value)
+                .put(SUM_WEIGHT_CUBES, aggregateValue
+                    .getFloat64(SUM_WEIGHT_CUBES) + weight * Math.pow(value, 3))
+                .put(SUM_WEIGHT_QUARTIC, aggregateValue
+                    .getFloat64(SUM_WEIGHT_QUARTIC) + weight * Math.pow(value, 4));
         }
 
         /**
@@ -110,8 +128,33 @@ public class WeightedKurtosisUdaf {
          */
         @Override
         public Double map(Struct aggregate) {
-            throw new UnsupportedOperationException(
-                "map(Struct aggregat) is not yet implemented");      
+            
+            double sumW = aggregate.getFloat64(SUM_WEIGHTS);
+
+            // If sumWeights is 0, avoid division by zero
+            if (sumW == 0.0) {
+                return 0.0;
+            }
+
+            // Calculating the weighted mean
+            double mean = aggregate.getFloat64(SUM_VALUES) / sumW;
+
+            // Calculating the weighted variance
+            double m2 = (aggregate.getFloat64(SUM_WEIGHT_SQUARES) / sumW) - Math.pow(mean, 2);
+
+            // if variance is 0, avoid division by zero
+            if (m2 == 0.0) {
+                return 0.0;
+            }
+
+            // Calculating the weighted kurtosis
+            double m4 = (aggregate.getFloat64(SUM_WEIGHT_QUARTIC) / sumW)
+                      - 4 * mean * (aggregate.getFloat64(SUM_WEIGHT_CUBES) / sumW)
+                      + 6 * mean * mean * (aggregate.getFloat64(SUM_WEIGHT_SQUARES) / sumW)
+                      - 3 * Math.pow(mean, 4);
+
+            // Returning standardized weighted kurtosis
+            return m4 / (m2 * m2);    
         }
 
         /**
@@ -123,8 +166,16 @@ public class WeightedKurtosisUdaf {
          */
         @Override
         public Struct merge(Struct aggOne, Struct aggTwo) {
-            throw new UnsupportedOperationException(
-                "merge(Struct aggOne, Struct aggTwo) is not yet implemented");
+
+            return new Struct(STRUCT_SCHEMA)
+                .put(SUM_VALUES, aggOne.getFloat64(SUM_VALUES) + aggTwo.getFloat64(SUM_VALUES))
+                .put(SUM_WEIGHTS, aggOne.getFloat64(SUM_WEIGHTS) + aggTwo.getFloat64(SUM_WEIGHTS))
+                .put(SUM_WEIGHT_SQUARES, aggOne.getFloat64(SUM_WEIGHT_SQUARES) 
+                    + aggTwo.getFloat64(SUM_WEIGHT_SQUARES))
+                .put(SUM_WEIGHT_CUBES, aggOne.getFloat64(SUM_WEIGHT_CUBES) 
+                    + aggTwo.getFloat64(SUM_WEIGHT_CUBES))
+                .put(SUM_WEIGHT_QUARTIC, aggOne.getFloat64(SUM_WEIGHT_QUARTIC) 
+                    + aggTwo.getFloat64(SUM_WEIGHT_QUARTIC));
         }
     }
 }
