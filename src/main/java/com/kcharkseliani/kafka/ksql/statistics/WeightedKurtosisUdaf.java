@@ -40,7 +40,7 @@ public class WeightedKurtosisUdaf {
     private static final String SUM_WEIGHT_CUBES = "SUM_WEIGHT_CUBES";
 
     /** Field name for the internal aggregation state of the sum of quartic powers of values. */
-    private static final String SUM_WEIGHT_QUADS = "SUM_WEIGHT_QUADS";
+    private static final String SUM_WEIGHT_QUARTIC = "SUM_WEIGHT_QUARTIC";
 
     /** Schema used to structure the aggregation result. */
     private static final Schema STRUCT_SCHEMA = SchemaBuilder.struct().optional()
@@ -48,7 +48,7 @@ public class WeightedKurtosisUdaf {
         .field(SUM_WEIGHTS, Schema.OPTIONAL_FLOAT64_SCHEMA)
         .field(SUM_WEIGHT_SQUARES, Schema.OPTIONAL_FLOAT64_SCHEMA)
         .field(SUM_WEIGHT_CUBES, Schema.OPTIONAL_FLOAT64_SCHEMA)
-        .field(SUM_WEIGHT_QUADS, Schema.OPTIONAL_FLOAT64_SCHEMA)
+        .field(SUM_WEIGHT_QUARTIC, Schema.OPTIONAL_FLOAT64_SCHEMA)
         .build();
 
     /** Private constructor to prevent instantiation. */
@@ -64,7 +64,7 @@ public class WeightedKurtosisUdaf {
     @UdafFactory(
         description = "Calculates weighted kurtosis of a series of values with weights",
         aggregateSchema = "STRUCT<SUM_VALUES double, SUM_WEIGHTS double, " +
-                          "SUM_WEIGHT_SQUARES double, SUM_WEIGHT_CUBES double, SUM_WEIGHT_QUADS double>")
+                          "SUM_WEIGHT_SQUARES double, SUM_WEIGHT_CUBES double, SUM_WEIGHT_QUARTIC double>")
     public static Udaf<Pair<Double, Double>, Struct, Double> createUdaf() {
         return new WeightedKurtosisUdafImpl();
     }

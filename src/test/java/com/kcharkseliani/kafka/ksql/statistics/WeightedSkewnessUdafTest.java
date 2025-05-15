@@ -92,6 +92,7 @@ public class WeightedSkewnessUdafTest {
      */
     @Test
     void testMap_ValidRecords_ShouldReturnExpectedSkewness() {
+
         Struct aggregate = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 15.0)
                 .put(SUM_WEIGHTS, 5.0)
@@ -109,10 +110,54 @@ public class WeightedSkewnessUdafTest {
     }
 
     /**
+     * Tests that {@code map} returns 0 when weights are all zero, avoiding division by zero.
+     */
+    @Test
+    void testMap_ZeroWeights_ShouldReturnZeroSkewness() {
+
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+                .put(SUM_VALUES, 0.0)
+                .put(SUM_WEIGHTS, 0.0)
+                .put(SUM_WEIGHT_SQUARES, 0.0)
+                .put(SUM_WEIGHT_CUBES, 0.0);
+
+        Double skewness = udafImpl.map(aggregate);
+
+        assertEquals(0.0, skewness, 0.0001);
+    }
+
+    /**
+     * Tests that {@code map} returns 0 when variance is zero,
+     * even if weights are non-zero (e.g. all values are the same).
+     */
+    @Test
+    void testMap_ZeroVariance_ShouldReturnZeroSkewness() {
+
+        // All values are 3.0, weights are non-zero, so variance = 0
+        double repeatedValue = 3.0;
+        double totalWeight = 6.0;
+        double sumValues = repeatedValue * totalWeight;
+        double sumWeightSquares = repeatedValue * repeatedValue * totalWeight;
+        double sumWeightCubes = repeatedValue * repeatedValue * repeatedValue * totalWeight;
+
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+                .put(SUM_VALUES, sumValues)
+                .put(SUM_WEIGHTS, totalWeight)
+                .put(SUM_WEIGHT_SQUARES, sumWeightSquares)
+                .put(SUM_WEIGHT_CUBES, sumWeightCubes);
+
+        Double skewness = udafImpl.map(aggregate);
+
+        // Expect skewness to be zero since variance is zero (all values equal)
+        assertEquals(0.0, skewness, 0.0001);
+    }
+
+    /**
      * Tests that the {@code merge} method combines two intermediate structs correctly.
      */
     @Test
     void testMerge_ShouldCombineIntermediateStatesCorrectly() {
+
         Struct aggOne = new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, 20.0)
                 .put(SUM_WEIGHTS, 6.0)
@@ -132,47 +177,6 @@ public class WeightedSkewnessUdafTest {
         assertEquals(14.0, merged.getFloat64(SUM_WEIGHTS), 0.0001);
         assertEquals(190.0, merged.getFloat64(SUM_WEIGHT_SQUARES), 0.0001);
         assertEquals(760.0, merged.getFloat64(SUM_WEIGHT_CUBES), 0.0001);
-    }
-
-    /**
-     * Tests that {@code map} returns 0 when weights are all zero, avoiding division by zero.
-     */
-    @Test
-    void testMap_ZeroWeights_ShouldReturnZeroSkewness() {
-        Struct aggregate = new Struct(STRUCT_SCHEMA)
-                .put(SUM_VALUES, 0.0)
-                .put(SUM_WEIGHTS, 0.0)
-                .put(SUM_WEIGHT_SQUARES, 0.0)
-                .put(SUM_WEIGHT_CUBES, 0.0);
-
-        Double skewness = udafImpl.map(aggregate);
-
-        assertEquals(0.0, skewness, 0.0001);
-    }
-
-    /**
-     * Tests that {@code map} returns 0 when variance is zero,
-     * even if weights are non-zero (e.g. all values are the same).
-     */
-    @Test
-    void testMap_ZeroVariance_ShouldReturnZeroSkewness() {
-        // All values are 3.0, weights are non-zero, so variance = 0
-        double repeatedValue = 3.0;
-        double totalWeight = 6.0;
-        double sumValues = repeatedValue * totalWeight;
-        double sumWeightSquares = repeatedValue * repeatedValue * totalWeight;
-        double sumWeightCubes = repeatedValue * repeatedValue * repeatedValue * totalWeight;
-
-        Struct aggregate = new Struct(STRUCT_SCHEMA)
-                .put(SUM_VALUES, sumValues)
-                .put(SUM_WEIGHTS, totalWeight)
-                .put(SUM_WEIGHT_SQUARES, sumWeightSquares)
-                .put(SUM_WEIGHT_CUBES, sumWeightCubes);
-
-        Double skewness = udafImpl.map(aggregate);
-
-        // Expect skewness to be zero since variance is zero (all values equal)
-        assertEquals(0.0, skewness, 0.0001);
     }
 }
 
