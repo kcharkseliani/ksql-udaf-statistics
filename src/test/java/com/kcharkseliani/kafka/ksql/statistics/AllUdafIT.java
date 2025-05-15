@@ -362,6 +362,24 @@ public class AllUdafIT {
     }
 
     /**
+     * Tests the KURTOSIS_WEIGHTED UDAF on a representative weighted dataset.
+     * Asserts that the kurtosis value matches the expected computation.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosisWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
+        double[] values = {5.0, 2.0, 8.0, 4.0};
+        double[] weights = {2.0, 4.0, 1.0, 2.0};
+
+        double expected = computeWeightedKurtosis(values, weights);
+
+        runAggregationTest(List.of(values, weights),
+            expected,
+            "KURTOSIS_WEIGHTED");
+    }
+
+    /**
      * Tests the KURTOSIS UDAF with bias correction and < 4 samples.
      * Asserts that the result is NaN.
      *
@@ -379,6 +397,24 @@ public class AllUdafIT {
     }
 
     /**
+     * Tests the KURTOSIS_WEIGHTED UDAF where all weights are zero.
+     * Asserts that the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosisWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
+        double[] values = {0.0, 0.0, 0.0};
+        double[] weights = {0.0, 0.0, 0.0};
+
+        double expected = computeWeightedKurtosis(values, weights);
+
+        runAggregationTest(List.of(values, weights),
+            expected,
+            "KURTOSIS_WEIGHTED");
+    }
+
+    /**
      * Tests the KURTOSIS UDAF on values with zero variance.
      * Asserts that the result is zero and does not produce NaN or error.
      *
@@ -392,6 +428,24 @@ public class AllUdafIT {
         runAggregationTest(List.of(values), 
             0.0, 
             "KURTOSIS");
+    }
+
+    /**
+     * Tests the KURTOSIS_WEIGHTED UDAF on values with zero variance.
+     * Asserts that the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosisWeighted_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
+        double[] values = {3.0, 3.0, 3.0, 3.0};
+        double[] weights = {1.0, 1.0, 1.0, 1.0};
+
+        double expected = computeWeightedKurtosis(values, weights);
+
+        runAggregationTest(List.of(values, weights),
+            expected,
+            "KURTOSIS_WEIGHTED");
     }
 
     /**
@@ -717,6 +771,7 @@ public class AllUdafIT {
      * @return the weighted skewness, or 0.0 if total weight or variance is zero
      */
     private static double computeWeightedSkewness(double[] values, double[] weights) {
+
         double sumWeights = 0.0;
         double weightedSum = 0.0;
         double weightedSumSquares = 0.0;
@@ -803,5 +858,46 @@ public class AllUdafIT {
         m4 /= n;
 
         return m2 == 0 ? 0.0 : m4 / (m2 * m2);
+    }
+
+    /**
+     * Computes the weighted kurtosis of a set of values using provided weights.
+     *
+     * @param values array of numeric values
+     * @param weights array of corresponding weights
+     * @return the weighted kurtosis, or 0.0 if total weight or variance is zero
+     */
+    private static double computeWeightedKurtosis(double[] values, double[] weights) {
+
+        double sumWeights = 0.0;
+        double sum = 0.0;
+        double m2 = 0.0;
+        double m4 = 0.0;
+
+        for (int i = 0; i < values.length; i++) {
+            double x = values[i];
+            double w = weights[i];
+            sumWeights += w;
+            sum += w * x;
+        }
+
+        if (sumWeights == 0.0) {
+            return 0.0;
+        }
+
+        double mean = sum / sumWeights;
+
+        for (int i = 0; i < values.length; i++) {
+            double x = values[i];
+            double w = weights[i];
+            double diff = x - mean;
+            m2 += w * diff * diff;
+            m4 += w * Math.pow(diff, 4);
+        }
+
+        m2 /= sumWeights;
+        m4 /= sumWeights;
+
+        return m2 == 0.0 ? 0.0 : m4 / (m2 * m2);
     }
 }
