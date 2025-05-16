@@ -793,15 +793,15 @@ public class AllUdafIT {
         }
     
         double mean = weightedSum / sumWeights;
-        double m2 = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
+        double variance = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
         double m3 = (weightedSumCubes / sumWeights) - 3 * mean * (weightedSumSquares / sumWeights) + 2 * Math.pow(mean, 3);
     
         // Avoid division by zero
-        if (m2 == 0.0) {
+        if (variance == 0.0) {
             return 0.0;
         }
     
-        return m3 / Math.pow(m2, 1.5);
+        return m3 / Math.pow(variance, 1.5);
     }
 
     /**
@@ -817,18 +817,18 @@ public class AllUdafIT {
         }
     
         double mean = Arrays.stream(values).average().orElse(0.0);
-        double m2 = 0.0, m3 = 0.0;
+        double variance = 0.0, m3 = 0.0;
     
         for (double x : values) {
             double diff = x - mean;
-            m2 += diff * diff;
+            variance += diff * diff;
             m3 += diff * diff * diff;
         }
     
-        m2 /= n;
+        variance /= n;
         m3 /= n;
     
-        return m2 == 0 ? 0.0 : m3 / Math.pow(m2, 1.5);
+        return variance == 0 ? 0.0 : m3 / Math.pow(variance, 1.5);
     }
 
     /**
@@ -844,20 +844,20 @@ public class AllUdafIT {
         }
 
         double mean = Arrays.stream(values).average().orElse(0.0);
-        double m2 = 0.0, m4 = 0.0;
+        double variance = 0.0, m4 = 0.0;
 
         for (double x : values) {
             double diff = x - mean;
             double diffSq = diff * diff;
-            m2 += diffSq;
+            variance += diffSq;
             // (x - mean)^4
             m4 += diffSq * diffSq;
         }
 
-        m2 /= n;
+        variance /= n;
         m4 /= n;
 
-        return m2 == 0 ? 0.0 : m4 / (m2 * m2);
+        return variance == 0 ? 0.0 : m4 / (variance * variance);
     }
 
     /**
@@ -871,7 +871,7 @@ public class AllUdafIT {
 
         double sumWeights = 0.0;
         double sum = 0.0;
-        double m2 = 0.0;
+        double variance = 0.0;
         double m4 = 0.0;
 
         for (int i = 0; i < values.length; i++) {
@@ -891,13 +891,13 @@ public class AllUdafIT {
             double x = values[i];
             double w = weights[i];
             double diff = x - mean;
-            m2 += w * diff * diff;
+            variance += w * diff * diff;
             m4 += w * Math.pow(diff, 4);
         }
 
-        m2 /= sumWeights;
+        variance /= sumWeights;
         m4 /= sumWeights;
 
-        return m2 == 0.0 ? 0.0 : m4 / (m2 * m2);
+        return variance == 0.0 ? 0.0 : m4 / (variance * variance);
     }
 }
