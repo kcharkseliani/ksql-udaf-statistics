@@ -90,3 +90,44 @@ task verify {
     description = "Runs unit tests, builds the uber-JAR, and then runs integration tests"
     dependsOn 'check', 'shadowJar', 'integrationTest'
 }
+
+task replaceUdafVersions {
+    group = "build"
+    description = "Replaces version values in @UdafDescription annotations with project version"
+
+    doLast {
+        def versionToInject = project.version
+        def srcDir = file("src/main/java")
+
+        srcDir.eachFileRecurse(groovy.io.FileType.FILES) { file ->
+            if (!file.name.endsWith(".java")) return
+
+            def insideAnnotation = false
+            def modifiedLines = []
+
+            file.eachLine { line ->
+                if (line.contains("@UdafDescription")) {
+                    insideAnnotation = true
+                    modifiedLines << line
+                } else if (insideAnnotation) {
+                    // Check if we're exiting the annotation block
+                    if (line.contains(")")) {
+                        insideAnnotation = false
+                    }
+                    // Replace only the version assignment
+                    def modified = line.replaceAll(
+                        /\bversion\s*=\s*"[^"]*"/,
+                        "version = \"${versionToInject}\""
+                    )
+                    modifiedLines << modified
+                } else {
+                    modifiedLines << line
+                }
+            }
+
+            file.text = modifiedLines.join(System.lineSeparator())
+        }
+
+        println "Updated UDAF annotation versions to: $versionToInject"
+    }
+}
