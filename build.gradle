@@ -34,6 +34,9 @@ dependencies {
     
     // Reflection for integration testing to get UDAF names from class annotations
     testImplementation "org.reflections:reflections:0.10.2"
+
+    // For validating results where the function is readily available
+    testImplementation "org.apache.commons:commons-math3:3.6.1"
 }
 
 java {
@@ -86,4 +89,59 @@ task verify {
     group = "verification"
     description = "Runs unit tests, builds the uber-JAR, and then runs integration tests"
     dependsOn 'check', 'shadowJar', 'integrationTest'
+}
+
+/**
+    Scans Java source files for @UdafDescription annotations and replaces the version 
+    string inside them with the current project version. 
+    Useful when injecting dynamic versions from CI/CD pipelines
+ */
+task replaceUdafVersions {
+    group = "build"
+    description = "Replaces version values in @UdafDescription annotations with project version"
+
+    doLast {
+
+        // Use the resolved project version (set via -PbuildVersion or defaulted)
+        def versionToInject = project.version
+
+        // Target the main Java source folder
+        def srcDir = file("src/main/java")
+
+        // Recursively walk all files under src/main/java
+        srcDir.eachFileRecurse(groovy.io.FileType.FILES) { file ->
+            if (!file.name.endsWith(".java")) return
+
+            // Track whether we're inside a @UdafDescription annotation block
+            def insideAnnotation = false
+            def modifiedLines = []
+
+            // Process each line in the file
+            file.eachLine { line ->
+                if (line.contains("@UdafDescription")) {
+                    insideAnnotation = true
+                    modifiedLines << line
+                } else if (insideAnnotation) {
+                    // Check if we're exiting the annotation block
+                    if (line.contains(")")) {
+                        insideAnnotation = false
+                    }
+                    // Replace only the version assignment
+                    def modified = line.replaceAll(
+                        /\bversion\s*=\s*"[^"]*"/,
+                        "version = \"${versionToInject}\""
+                    )
+                    modifiedLines << modified
+                } else {
+                    // Not inside annotation, keep line as-is
+                    modifiedLines << line
+                }
+            }
+
+            // Overwrite the original file with modified lines
+            file.text = modifiedLines.join(System.lineSeparator())
+        }
+
+        println "Updated UDAF annotation versions to: $versionToInject"
+    }
 }

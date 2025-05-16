@@ -9,8 +9,12 @@ import java.net.http.HttpResponse;
 
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;  
 import java.util.Properties;
 import java.time.Duration;
 
@@ -23,10 +27,11 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
+import org.apache.commons.math3.stat.descriptive.moment.Skewness;
+import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
+
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
-import org.junit.jupiter.api.TestMethodOrder;
-
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.BindMode;
@@ -148,7 +153,7 @@ public class AllUdafIT {
      * Tests the STDDEV_WEIGHTED UDAF on a set of weighted values.
      * Asserts that the standard deviation value matches the expected computation.
      *
-     * @throws Exception if any ksqlDB or HTTP operation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testStddevWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
@@ -158,14 +163,16 @@ public class AllUdafIT {
 
         double expected = computeWeightedStdDev(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
+        runAggregationTest(List.of(values, weights), 
+            expected, 
+            "STDDEV_WEIGHTED");
     }
 
     /**
      * Tests the STDDEV_WEIGHTED UDAF on all-zero values and weights.
      * Asserts that the result is zero and does not produce NaN or error.
      *
-     * @throws Exception if the test setup or query fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testStddevWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
@@ -175,14 +182,58 @@ public class AllUdafIT {
 
         double expected = computeWeightedStdDev(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "STDDEV_WEIGHTED");
+        runAggregationTest(List.of(values, weights), 
+            expected, 
+            "STDDEV_WEIGHTED");
+    }
+
+    /**
+     * Tests the SKEWNESS UDAF on a representative dataset.
+     * Asserts that the skewness value matches the expected computation.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testSkewness_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
+
+        double[] values = {4.0, 7.0, 13.0, 16.0, 20.0};
+
+        double expected = computePopulationSkewness(values);
+
+        runAggregationTest(
+            List.of(values),     // Only values column (no weights)
+            expected,
+            "SKEWNESS"
+        );
+    }
+
+    /**
+     * Tests the SKEWNESS UDAF with bias correction (sample skewness) on a representative dataset.
+     * Asserts that the skewness value matches the expected computation.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testSkewness_WithBiasCorrection_ShouldAggregateAll() throws Exception {
+
+        double[] values = {4.0, 7.0, 13.0, 16.0, 20.0};
+
+        // This computes sample skewness
+        double expected = new Skewness().evaluate(values);
+
+        runAggregationTest(
+            List.of(values),     // Only values column (no weights)
+            expected,
+            "SKEWNESS",
+            true
+        );
     }
 
     /**
      * Tests the SKEWNESS_WEIGHTED UDAF on a representative weighted dataset.
      * Asserts that the skewness value matches the expected computation.
      *
-     * @throws Exception if any HTTP or parsing operation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testSkewnessWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
@@ -192,14 +243,33 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
+        runAggregationTest(List.of(values, weights), 
+            expected, 
+            "SKEWNESS_WEIGHTED");
+    }
+
+    /**
+     * Tests the SKEWNESS UDAF with bias correction and < 3 samples.
+     * Asserts that the result is NaN.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testSkewness_InsufficientDataForSample_ShouldReturnNaN() throws Exception {
+
+        double[] values = {1, 2};
+
+        runAggregationTest(List.of(values), 
+            Double.NaN, 
+            "SKEWNESS",
+            true);
     }
 
     /**
      * Tests the SKEWNESS_WEIGHTED UDAF where all weights are zero.
      * Asserts that the result is zero and does not produce NaN or error.
      *
-     * @throws Exception if setup or validation fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testSkewnessWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
@@ -209,14 +279,32 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
+        runAggregationTest(List.of(values, weights), 
+            expected, 
+            "SKEWNESS_WEIGHTED");
+    }
+
+    /**
+     * Tests the SKEWNESS UDAF on values with zero variance.
+     * Asserts that the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testSkewness_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
+
+        double[] values = {1, 1, 1};
+
+        runAggregationTest(List.of(values), 
+            0.0, 
+            "SKEWNESS");
     }
 
     /**
      * Tests the SKEWNESS_WEIGHTED UDAF on values with zero variance.
      * Asserts that the result is zero and does not produce NaN or error.
      *
-     * @throws Exception if ksqlDB interaction fails
+     * @throws Exception if any HTTP requests or parsing operations fail
      */
     @Test
     void testSkewnessWeighted_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
@@ -226,7 +314,138 @@ public class AllUdafIT {
 
         double expected = computeWeightedSkewness(values, weights);
 
-        runWeightedAggregationTest(values, weights, expected, "SKEWNESS_WEIGHTED");
+        runAggregationTest(List.of(values, weights), 
+            expected, 
+            "SKEWNESS_WEIGHTED");
+    }
+
+    /**
+     * Tests the KURTOSIS UDAF on a representative dataset.
+     * Asserts that the kurtosis value matches the expected computation.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosis_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
+
+        double[] values = {14.0, 7.0, 13.0, 16.0, 20.0, 15.0};
+
+        double expected = computePopulationKurtosis(values);
+
+        runAggregationTest(
+            List.of(values),
+            expected,
+            "KURTOSIS"
+        );
+    }
+
+    /**
+     * Tests the KURTOSIS UDAF with bias correction (sample kurtosis) on a representative dataset.
+     * Asserts that the kurtosis value matches the expected computation.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosis_WithBiasCorrection_ShouldAggregateAll() throws Exception {
+
+        double[] values = {14.0, 7.0, 13.0, 16.0, 20.0, 15.0};
+
+        // This computes sample skewness
+        double expected = new Kurtosis().evaluate(values);
+
+        runAggregationTest(
+            List.of(values),
+            expected,
+            "KURTOSIS",
+            true
+        );
+    }
+
+    /**
+     * Tests the KURTOSIS_WEIGHTED UDAF on a representative weighted dataset.
+     * Asserts that the kurtosis value matches the expected computation.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosisWeighted_ValidRecordsInserted_ShouldAggregateAll() throws Exception {
+        double[] values = {5.0, 2.0, 8.0, 4.0};
+        double[] weights = {2.0, 4.0, 1.0, 2.0};
+
+        double expected = computeWeightedKurtosis(values, weights);
+
+        runAggregationTest(List.of(values, weights),
+            expected,
+            "KURTOSIS_WEIGHTED");
+    }
+
+    /**
+     * Tests the KURTOSIS UDAF with bias correction and < 4 samples.
+     * Asserts that the result is NaN.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosis_InsufficientDataForSample_ShouldReturnNaN() throws Exception {
+
+        double[] values = {1, 2};
+
+        runAggregationTest(List.of(values), 
+            Double.NaN, 
+            "KURTOSIS",
+            true);
+    }
+
+    /**
+     * Tests the KURTOSIS_WEIGHTED UDAF where all weights are zero.
+     * Asserts that the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosisWeighted_AllZeroRecordsInserted_ShouldReturnZero() throws Exception {
+        double[] values = {0.0, 0.0, 0.0};
+        double[] weights = {0.0, 0.0, 0.0};
+
+        double expected = computeWeightedKurtosis(values, weights);
+
+        runAggregationTest(List.of(values, weights),
+            expected,
+            "KURTOSIS_WEIGHTED");
+    }
+
+    /**
+     * Tests the KURTOSIS UDAF on values with zero variance.
+     * Asserts that the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosis_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
+
+        double[] values = {1, 1, 1, 1};
+
+        runAggregationTest(List.of(values), 
+            0.0, 
+            "KURTOSIS");
+    }
+
+    /**
+     * Tests the KURTOSIS_WEIGHTED UDAF on values with zero variance.
+     * Asserts that the result is zero and does not produce NaN or error.
+     *
+     * @throws Exception if any HTTP requests or parsing operations fail
+     */
+    @Test
+    void testKurtosisWeighted_ZeroVarianceRecordsInserted_ShouldReturnZero() throws Exception {
+        double[] values = {3.0, 3.0, 3.0, 3.0};
+        double[] weights = {1.0, 1.0, 1.0, 1.0};
+
+        double expected = computeWeightedKurtosis(values, weights);
+
+        runAggregationTest(List.of(values, weights),
+            expected,
+            "KURTOSIS_WEIGHTED");
     }
 
     /**
@@ -287,20 +506,44 @@ public class AllUdafIT {
 
     /**
      * Helper method that executes a full integration test against a specified UDAF.
+     * Works with an arbitrary number of input columns for the function.
      * It creates a stream and table, inserts test data, and verifies results through:
      * - Pull queries to ksqlDB
      * - Reading from the output Kafka topic
      *
-     * @param values array of input values
-     * @param weights corresponding array of weights
-     * @param expectedValue expected result from the aggregation
-     * @param functionName the name of the UDAF to apply (e.g. STDDEV_WEIGHTED)
-     * @throws Exception if any step in the test flow fails
+     * @param columnValues List of arrays, each representing the values for a column (must be the same length)
+     * @param expectedValue The expected aggregation result for the specified function
+     * @param functionName The registered name of the UDAF function to invoke (e.g., "SKEWNESS_WEIGHTED")
+     * @param constructorArgs Optional arguments passed to the UDAF constructor (e.g., flags like isSample)
+     * @throws Exception If any step in the test flow fails (stream creation, data insertion, or verification)
      */
-    private void runWeightedAggregationTest(double[] values, 
-        double[] weights, 
-        double expectedValue, 
-        String functionName) throws Exception {
+    private void runAggregationTest(
+        List<double[]> columnValues,
+        double expectedValue,
+        String functionName,
+        Object... constructorArgs) throws Exception {
+
+        // Building a comma-separated string of optional constructor arguments
+        String argLiterals = Stream.of(constructorArgs)
+            .map(arg -> {
+                if (arg instanceof String) return "'" + arg + "'";
+                else if (arg instanceof Boolean) return (Boolean) arg ? "true" : "false";
+                else return String.valueOf(arg);
+            })
+            .collect(Collectors.joining(", "));
+
+        // Making sure the numbers of values in each column supplied are the same
+        int recordCount = columnValues.get(0).length;
+        for (double[] col : columnValues) {
+            if (col.length != recordCount) {
+                throw new IllegalArgumentException("All value arrays must be the same length");
+            }
+        }
+
+        // Auto-generate column names: col1, col2, col3, ...
+        List<String> columnNames = IntStream.range(0, columnValues.size())
+            .mapToObj(i -> "col" + (i + 1))
+            .collect(Collectors.toList());
 
         String host = ksqldb.getHost();
         int port = ksqldb.getMappedPort(8088);
@@ -309,10 +552,16 @@ public class AllUdafIT {
         HttpClient client = HttpClient.newHttpClient();
     
         // === 1. Create stream ===
-        String createStream =
-            "{ \"ksql\": \"CREATE STREAM input_values (val DOUBLE, weight DOUBLE) " +
+        String streamColumns = columnNames.stream()
+            .map(col -> col + " DOUBLE")
+            .collect(Collectors.joining(", "));
+
+        String createStream = String.format(
+            "{ \"ksql\": \"CREATE STREAM input_values (%s) " +
             "WITH (kafka_topic='input_values', value_format='json', partitions=1);\", " +
-            "\"streamsProperties\":{} }";
+            "\"streamsProperties\": {} }",
+            streamColumns
+        );
     
         HttpResponse<String> streamResponse = client.send(
             HttpRequest.newBuilder()
@@ -331,13 +580,21 @@ public class AllUdafIT {
         Thread.sleep(2_000);
     
         // === 2. Create table with aggregation using specified UDAF ===
-        String createTable =
-            "{ \"ksql\": \"CREATE TABLE aggregated_result WITH (" +
-            "KAFKA_TOPIC='aggregated_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
-            "SELECT 'singleton' AS id, " + functionName + "(val, weight) AS result " +
-            "FROM input_values " +
-            "GROUP BY 'singleton' EMIT CHANGES;\"," +
-            " \"streamsProperties\": {} }";
+        String functionArgs = String.join(", ", columnNames);
+
+        // If constructor args exist, append them
+        if (!argLiterals.isEmpty()) {
+            functionArgs += ", " + argLiterals;
+        }
+
+        String createTable = String.format(
+            "{ \"ksql\": \"CREATE TABLE aggregated_result " +
+            "WITH (KAFKA_TOPIC='aggregated_output', PARTITIONS=1, VALUE_FORMAT='JSON') AS " +
+            "SELECT 'singleton' AS id, %s(%s) AS result " +
+            "FROM input_values GROUP BY 'singleton' EMIT CHANGES;\", " +
+            "\"streamsProperties\": {} }",
+            functionName, functionArgs
+        );
     
         HttpResponse<String> tableResponse = client.send(
             HttpRequest.newBuilder()
@@ -357,9 +614,16 @@ public class AllUdafIT {
         // === 3. Insert data ===
         // Build INSERT statements dynamically
         StringBuilder insertStatements = new StringBuilder();
-        for (int i = 0; i < values.length; i++) {
-            insertStatements.append("INSERT INTO input_values (val, weight) VALUES (")
-                            .append(values[i]).append(", ").append(weights[i]).append("); ");
+        for (int i = 0; i < recordCount; i++) {
+            final int rowIndex = i;
+
+            insertStatements.append("INSERT INTO input_values (")
+                .append(String.join(", ", columnNames))
+                .append(") VALUES (")
+                .append(IntStream.range(0, columnNames.size())
+                                .mapToObj(j -> String.valueOf(columnValues.get(j)[rowIndex]))
+                                .collect(Collectors.joining(", ")))
+                .append("); ");
         }
     
         // Build the final JSON string
@@ -402,10 +666,23 @@ public class AllUdafIT {
     
         JsonNode root = new ObjectMapper().readTree(queryResponse.body());       
         JsonNode resultValue = root.get(1).path("row").path("columns").get(1);
-        double actual = resultValue.asDouble();
+
+        double actual;
+
+        // A 'null' in ksqlDB becomes NaN for validation purposes
+        if (resultValue.isNull()) {
+            actual = Double.NaN;
+        } else {
+            actual = resultValue.asDouble();
+        }
     
-        Assertions.assertEquals(expectedValue, actual, 0.0001,
-            "Expected " + expectedValue + " but got " + actual);
+        if (Double.isNaN(expectedValue)) {
+            Assertions.assertTrue(Double.isNaN(actual), "Expected NaN but got " + actual);
+        } 
+        else {
+            Assertions.assertEquals(expectedValue, actual, 0.0001, 
+                "Expected " + expectedValue + " but got " + actual);
+        }
 
         // === 5. Consume from output Kafka topic to verify ===
         Properties props = new Properties();
@@ -430,7 +707,16 @@ public class AllUdafIT {
                     if (value.contains("RESULT")) {
                         ObjectMapper mapper = new ObjectMapper();
                         JsonNode json = mapper.readTree(value);
-                        actualFromKafka = json.path("RESULT").asDouble();
+                        JsonNode resultNode = json.path("RESULT");
+
+                        // A 'null' in Kafka becomes NaN for validation purposes
+                        if (resultNode.isNull()) {
+                            actualFromKafka = Double.NaN;
+                        } 
+                        else {
+                            actualFromKafka = resultNode.asDouble();
+                        }
+                        
                         found = true;
                         break;
                     }
@@ -438,8 +724,13 @@ public class AllUdafIT {
             }
 
             Assertions.assertTrue(found, "Did not receive aggregated output from Kafka topic");
-            Assertions.assertEquals(expectedValue, actualFromKafka, 0.0001,
-                "Expected value from Kafka " + expectedValue + " but got " + actualFromKafka);
+            if (Double.isNaN(expectedValue)) {
+                Assertions.assertTrue(Double.isNaN(actualFromKafka), "Expected NaN from Kafka but got " + actualFromKafka);
+            } 
+            else {
+                Assertions.assertEquals(expectedValue, actualFromKafka, 0.0001, 
+                    "Expected value from Kafka " + expectedValue + " but got " + actualFromKafka);
+            }
         }
     }
 
@@ -480,6 +771,7 @@ public class AllUdafIT {
      * @return the weighted skewness, or 0.0 if total weight or variance is zero
      */
     private static double computeWeightedSkewness(double[] values, double[] weights) {
+
         double sumWeights = 0.0;
         double weightedSum = 0.0;
         double weightedSumSquares = 0.0;
@@ -501,14 +793,111 @@ public class AllUdafIT {
         }
     
         double mean = weightedSum / sumWeights;
-        double m2 = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
+        double variance = (weightedSumSquares / sumWeights) - Math.pow(mean, 2);
         double m3 = (weightedSumCubes / sumWeights) - 3 * mean * (weightedSumSquares / sumWeights) + 2 * Math.pow(mean, 3);
     
         // Avoid division by zero
-        if (m2 == 0.0) {
+        if (variance == 0.0) {
             return 0.0;
         }
     
-        return m3 / Math.pow(m2, 1.5);
+        return m3 / Math.pow(variance, 1.5);
+    }
+
+    /**
+     * Computes the population skewness of a set of values.
+     * @param values array of numeric values
+     * @return the population skewness, or 0.0 if the variance is zero or input is empty
+     */
+    private static double computePopulationSkewness(double[] values) {
+
+        int n = values.length;
+        if (n == 0) {
+            return 0.0;
+        }
+    
+        double mean = Arrays.stream(values).average().orElse(0.0);
+        double variance = 0.0, m3 = 0.0;
+    
+        for (double x : values) {
+            double diff = x - mean;
+            variance += diff * diff;
+            m3 += diff * diff * diff;
+        }
+    
+        variance /= n;
+        m3 /= n;
+    
+        return variance == 0 ? 0.0 : m3 / Math.pow(variance, 1.5);
+    }
+
+    /**
+     * Computes the population kurtosis of a set of values.
+     * @param values array of numeric values
+     * @return the population kurtosis, or 0.0 if the variance is zero or input is empty
+     */
+    private static double computePopulationKurtosis(double[] values) {
+
+        int n = values.length;
+        if (n == 0) {
+            return 0.0;
+        }
+
+        double mean = Arrays.stream(values).average().orElse(0.0);
+        double variance = 0.0, m4 = 0.0;
+
+        for (double x : values) {
+            double diff = x - mean;
+            double diffSq = diff * diff;
+            variance += diffSq;
+            // (x - mean)^4
+            m4 += diffSq * diffSq;
+        }
+
+        variance /= n;
+        m4 /= n;
+
+        return variance == 0 ? 0.0 : m4 / (variance * variance);
+    }
+
+    /**
+     * Computes the weighted kurtosis of a set of values using provided weights.
+     *
+     * @param values array of numeric values
+     * @param weights array of corresponding weights
+     * @return the weighted kurtosis, or 0.0 if total weight or variance is zero
+     */
+    private static double computeWeightedKurtosis(double[] values, double[] weights) {
+
+        double sumWeights = 0.0;
+        double sum = 0.0;
+        double variance = 0.0;
+        double m4 = 0.0;
+
+        for (int i = 0; i < values.length; i++) {
+            double x = values[i];
+            double w = weights[i];
+            sumWeights += w;
+            sum += w * x;
+        }
+
+        if (sumWeights == 0.0) {
+            return 0.0;
+        }
+
+        double mean = sum / sumWeights;
+
+        for (int i = 0; i < values.length; i++) {
+            double x = values[i];
+            double w = weights[i];
+            double diff = x - mean;
+            variance += w * diff * diff;
+            m4 += w * Math.pow(diff, 4);
+        }
+
+        variance /= sumWeights;
+        m4 /= sumWeights;
+
+        return variance == 0.0 ? 0.0 : m4 / (variance * variance);
     }
 }

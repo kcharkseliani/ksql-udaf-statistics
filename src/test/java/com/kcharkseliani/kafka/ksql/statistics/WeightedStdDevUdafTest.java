@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.util.Arrays;
+
 /**
  * Unit tests for the {@link WeightedStdDevUdaf} class.
  * 
@@ -87,22 +89,36 @@ public class WeightedStdDevUdafTest {
      */
     @Test
     void testMap_ValidRecords_ShouldReturnExpectedStdDev() {
+
+        // Using values and weights for a known result
+        double[] values = { 3.0, 4.0, 7.0, 13.0, 16.0, 20.0 };
+        double[] weights = { 2.0, 1.0, 2.0, 1.0, 3.0, 1.0 };
+
+        double sumValues = 0.0;
+        double sumWeights = 0.0;
+        double sumWeightSquares = 0.0;
+
+        // Compute sums that are used by the map method
+        for (int i = 0; i < values.length; i++) {
+            double value = values[i];
+            double weight = weights[i];
+
+            sumValues += value * weight;
+            sumWeights += weight;
+            sumWeightSquares += weight * Math.pow(value, 2);
+        }
+
         // Create a mock Struct with aggregated values
         Struct aggregate = new Struct(STRUCT_SCHEMA)
-                .put(SUM_VALUES, 20.0)
-                .put(SUM_WEIGHTS, 6.0)
-                .put(SUM_WEIGHT_SQUARES, 50.0);
+                .put(SUM_VALUES, sumValues)
+                .put(SUM_WEIGHTS, sumWeights)
+                .put(SUM_WEIGHT_SQUARES, sumWeightSquares);
 
         // Perform the map operation (final calculation)
         Double stddev = udafImpl.map(aggregate);
 
-        // Calculate expected standard deviation manually
-        double weightedMean = 20.0 / 6.0;
-        double variance = (50.0 / 6.0) - Math.pow(weightedMean, 2);
-        double expectedStdDev = Math.sqrt(Math.max(variance, 0.0));
-
         // Validate the result
-        assertEquals(expectedStdDev, stddev, 0.0001);
+        assertEquals(6.0539, stddev, 0.0001);
     }
 
     /**

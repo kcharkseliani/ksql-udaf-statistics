@@ -19,10 +19,12 @@ import org.apache.kafka.connect.data.Struct;
  * This class is stateless and delegates all UDAF logic to its internal 
  * {@link WeightedSkewnessUdafImpl} implementation class.
  */
-@UdafDescription(name = "skewness_weighted",
-                 author = "Konstantin Charkseliani",
-                 version = "0.1.0",
-                 description = "Calculates skewness based on weights of each value")
+@UdafDescription(
+    name = "skewness_weighted",
+    author = "Konstantin Charkseliani",
+    version = "local-dev",
+    description = "Calculates skewness based on weights of each value"
+)
 public class WeightedSkewnessUdaf {
 
     /** Field name for the internal aggregation state of the sum of values. */
@@ -92,6 +94,7 @@ public class WeightedSkewnessUdaf {
          */
         @Override
         public Struct aggregate(Pair<Double, Double> newValue, Struct aggregateValue) {
+
             // Extracting values from the Pair and the current state of the accumulator (Struct)
             double value = newValue.getLeft();
             double weight = newValue.getRight();
@@ -108,7 +111,7 @@ public class WeightedSkewnessUdaf {
             sumWeightSquares += weight * Math.pow(value, 2);
             sumWeightCubes += weight * Math.pow(value, 3);
 
-            // Returning a new Struct with updated sums
+            // Returning a new Struct with updated running sums
             return new Struct(STRUCT_SCHEMA)
                 .put(SUM_VALUES, sumValues)
                 .put(SUM_WEIGHTS, sumWeights)
@@ -124,6 +127,7 @@ public class WeightedSkewnessUdaf {
          */
         @Override
         public Double map(Struct aggregate) {
+
             // If no data was aggregated, return 0.0 as the skewness
             double sumValues = aggregate.getFloat64(SUM_VALUES);
             double sumWeights = aggregate.getFloat64(SUM_WEIGHTS);
@@ -149,7 +153,7 @@ public class WeightedSkewnessUdaf {
                 return 0.0;
             }
 
-            // Returning the weighted skewness
+            // Returning the standardized weighted skewness
             return skewness / Math.pow(Math.max(variance, 0.0), 1.5);  // Normalize by the variance's 3/2 power
         }
 
@@ -162,6 +166,7 @@ public class WeightedSkewnessUdaf {
          */
         @Override
         public Struct merge(Struct aggOne, Struct aggTwo) {
+            
             // Merging two accumulators by summing their respective values
             double sumValues = aggOne.getFloat64(SUM_VALUES) + aggTwo.getFloat64(SUM_VALUES);
             double sumWeights = aggOne.getFloat64(SUM_WEIGHTS) + aggTwo.getFloat64(SUM_WEIGHTS);
