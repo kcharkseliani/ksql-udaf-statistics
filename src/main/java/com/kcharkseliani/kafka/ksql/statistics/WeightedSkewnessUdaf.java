@@ -19,10 +19,12 @@ import org.apache.kafka.connect.data.Struct;
  * This class is stateless and delegates all UDAF logic to its internal 
  * {@link WeightedSkewnessUdafImpl} implementation class.
  */
-@UdafDescription(name = "skewness_weighted",
-                 author = "Konstantin Charkseliani",
-                 version = "0.1.0",
-                 description = "Calculates skewness based on weights of each value")
+@UdafDescription(
+    name = "skewness_weighted",
+    author = "Konstantin Charkseliani",
+    version = "local-dev",
+    description = "Calculates skewness based on weights of each value"
+)
 public class WeightedSkewnessUdaf {
 
     /** Field name for the internal aggregation state of the sum of values. */

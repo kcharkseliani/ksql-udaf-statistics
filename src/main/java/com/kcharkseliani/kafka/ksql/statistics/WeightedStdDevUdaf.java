@@ -19,10 +19,12 @@ import org.apache.kafka.connect.data.Struct;
  * This class is stateless and delegates all UDAF logic to its internal 
  * {@link WeightedStdDevUdafImpl} implementation class.
  */
-@UdafDescription(name = "stddev_weighted",
-                 author = "Konstantin Charkseliani",
-                 version = "0.1.0",
-                 description = "Calculates standard deviation based on weights of each value")
+@UdafDescription(
+    name = "stddev_weighted",
+    author = "Konstantin Charkseliani",
+    version = "local-dev",
+    description = "Calculates standard deviation based on weights of each value"
+)
 public class WeightedStdDevUdaf {
 
     /** Field name for the internal aggregation state of the sum of values. */

@@ -21,7 +21,7 @@ import org.apache.kafka.connect.data.Struct;
 @UdafDescription(
     name = "kurtosis",
     author = "Konstantin Charkseliani",
-    version = "0.1.0",
+    version = "local-dev",
     description = "Calculates kurtosis of a series of values"
 )
 public class KurtosisUdaf {

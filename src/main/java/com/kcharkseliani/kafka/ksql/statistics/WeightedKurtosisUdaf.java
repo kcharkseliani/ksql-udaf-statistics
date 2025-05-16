@@ -22,7 +22,7 @@ import org.apache.kafka.connect.data.Struct;
 @UdafDescription(
     name = "kurtosis_weighted",
     author = "Konstantin Charkseliani",
-    version = "0.1.0",
+    version = "local-dev",
     description = "Calculates kurtosis of a stream of values with associated weights"
 )
 public class WeightedKurtosisUdaf {

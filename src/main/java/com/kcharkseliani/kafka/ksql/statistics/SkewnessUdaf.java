@@ -21,7 +21,7 @@ import org.apache.kafka.connect.data.Struct;
 @UdafDescription(
     name = "skewness",
     author = "Konstantin Charkseliani",
-    version = "0.1.0",
+    version = "local-dev",
     description = "Calculates skewness of a series of values"
 )
 public class SkewnessUdaf {
