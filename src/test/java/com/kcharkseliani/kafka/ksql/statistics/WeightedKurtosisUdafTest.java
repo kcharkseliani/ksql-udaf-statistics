@@ -107,13 +107,13 @@ public class WeightedKurtosisUdafTest {
             .put(SUM_WEIGHT_QUARTIC, 979.0);
 
         double mean = 15.0 / 5.0;
-        double m2 = (55.0 / 5.0) - mean * mean;
+        double variance = (55.0 / 5.0) - mean * mean;
         double m4 = (979.0 / 5.0)
                   - 4 * mean * (125.0 / 5.0)
                   + 6 * mean * mean * (55.0 / 5.0)
                   - 3 * Math.pow(mean, 4);
 
-        double expected = m4 / (m2 * m2);
+        double expected = m4 / (variance * variance);
 
         assertEquals(expected, udafImpl.map(s), 0.0001);
     }

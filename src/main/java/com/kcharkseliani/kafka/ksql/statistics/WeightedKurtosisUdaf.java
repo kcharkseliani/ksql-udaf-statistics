@@ -140,10 +140,10 @@ public class WeightedKurtosisUdaf {
             double mean = aggregate.getFloat64(SUM_VALUES) / sumW;
 
             // Calculating the weighted variance
-            double m2 = (aggregate.getFloat64(SUM_WEIGHT_SQUARES) / sumW) - Math.pow(mean, 2);
+            double variance = (aggregate.getFloat64(SUM_WEIGHT_SQUARES) / sumW) - Math.pow(mean, 2);
 
             // if variance is 0, avoid division by zero
-            if (m2 == 0.0) {
+            if (variance == 0.0) {
                 return 0.0;
             }
 
@@ -154,7 +154,7 @@ public class WeightedKurtosisUdaf {
                       - 3 * Math.pow(mean, 4);
 
             // Returning standardized weighted kurtosis
-            return m4 / (m2 * m2);    
+            return m4 / (variance * variance);    
         }
 
         /**

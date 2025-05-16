@@ -167,21 +167,21 @@ public class KurtosisUdaf {
             }
 
             double mean = aggregate.getFloat64(SUM) / count;
-            double m2 = (aggregate.getFloat64(SUM_SQUARES) / count) - mean * mean;
+            double variance = (aggregate.getFloat64(SUM_SQUARES) / count) - mean * mean;
             double m4 = (aggregate.getFloat64(SUM_QUARTIC) / count)
                         - 4 * mean * (aggregate.getFloat64(SUM_CUBES) / count)
                         + 6 * mean * mean * (aggregate.getFloat64(SUM_SQUARES) / count)
                         - 3 * Math.pow(mean, 4);
 
             if (isSample) {
-                m2 *= (count / (count - 1.0));
+                variance *= (count / (count - 1.0));
             }
 
-            if (m2 == 0.0) {
+            if (variance == 0.0) {
                 return 0.0;
             }
 
-            double kurtosis = m4 / (m2 * m2);
+            double kurtosis = m4 / (variance * variance);
 
             if (isSample) {
                 // Apply sample correction factor
