@@ -104,21 +104,19 @@ public class KurtosisUdafTest {
     @Test
     void testMap_PopulationKurtosis_ShouldReturnCorrectValue() {
 
-        Struct s = new Struct(STRUCT_SCHEMA)
-            .put(COUNT, 5L)
-            .put(SUM, 15.0)
-            .put(SUM_SQUARES, 55.0)
-            .put(SUM_CUBES, 225.0)
-            .put(SUM_QUARTIC, 979.0);
+        // Using values for a known result
+        double[] values = { 3.0, 3.0, 4.0, 7.0, 7.0, 13.0, 16.0, 16.0, 16.0, 20.0 };
 
-        double mean = 15.0 / 5;
-        double variance = (55.0 / 5) - Math.pow(mean, 2);
-        double m4 = (979.0 / 5) - 4 * mean * (225.0 / 5) + 6 
-            * Math.pow(mean, 2) * (55.0 / 5) - 3 * Math.pow(mean, 4);
-        double expected = m4 / Math.pow(variance, 2);
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+                .put(COUNT, (long)values.length)
+                .put(SUM, Arrays.stream(values).sum())
+                .put(SUM_SQUARES, Arrays.stream(values).map(v -> v * v).sum())
+                .put(SUM_CUBES, Arrays.stream(values).map(v -> Math.pow(v, 3)).sum())
+                .put(SUM_QUARTIC, Arrays.stream(values).map(v -> Math.pow(v, 4)).sum());
 
-        double actual = udafImpl.map(s);
-        assertEquals(expected, actual, 0.0001);
+        double result = udafImpl.map(aggregate);
+
+        assertEquals(1.4400, result, 0.0001);
     }
 
     /**
@@ -127,28 +125,23 @@ public class KurtosisUdafTest {
     @Test
     void testMap_WithSampleCorrection_ShouldReturnCorrectSampleKurtosis() {
 
-        double[] values = {1.0, 2.0, 3.0, 4.0, 5.0};
+        double[] values = { 3.0, 3.0, 4.0, 7.0, 7.0, 13.0, 16.0, 16.0, 16.0, 20.0 };
 
         // Compute expected using Apache Commons Math;
         // by default, bias correction (sample kurtosis) is applied
         Kurtosis kurtosis = new Kurtosis();
         double expected = kurtosis.evaluate(values);
 
-        // Build aggregate manually
-        double sum = Arrays.stream(values).sum();
-        double sumSquares = Arrays.stream(values).map(v -> v * v).sum();
-        double sumCubes = Arrays.stream(values).map(v -> Math.pow(v, 3)).sum();
-        double sumQuartic = Arrays.stream(values).map(v -> Math.pow(v, 4)).sum();
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+                .put(COUNT, (long)values.length)
+                .put(SUM, Arrays.stream(values).sum())
+                .put(SUM_SQUARES, Arrays.stream(values).map(v -> v * v).sum())
+                .put(SUM_CUBES, Arrays.stream(values).map(v -> Math.pow(v, 3)).sum())
+                .put(SUM_QUARTIC, Arrays.stream(values).map(v -> Math.pow(v, 4)).sum());
 
-        Struct s = new Struct(STRUCT_SCHEMA)
-            .put(COUNT, (long) values.length)
-            .put(SUM, sum)
-            .put(SUM_SQUARES, sumSquares)
-            .put(SUM_CUBES, sumCubes)
-            .put(SUM_QUARTIC, sumQuartic);
+        double result = udafImplSample.map(aggregate);
 
-        double actual = udafImplSample.map(s);
-        assertEquals(expected, actual, 0.0001);
+        assertEquals(expected, result, 0.0001);
     }
 
     /**
@@ -214,7 +207,7 @@ public class KurtosisUdafTest {
      */
     @Test
     void testMerge_ShouldCombineIntermediateStatesCorrectly() {
-        
+
         Struct a = new Struct(STRUCT_SCHEMA)
             .put(COUNT, 2L)
             .put(SUM, 10.0)

@@ -93,20 +93,35 @@ public class WeightedSkewnessUdafTest {
     @Test
     void testMap_ValidRecords_ShouldReturnExpectedSkewness() {
 
+        // Using values and weights for a known result
+        double[] values = { 3.0, 4.0, 7.0, 13.0, 16.0, 20.0 };
+        double[] weights = { 2.0, 1.0, 2.0, 1.0, 3.0, 1.0 };
+
+        double sumValues = 0.0;
+        double sumWeights = 0.0;
+        double sumWeightSquares = 0.0;
+        double sumWeightCubes = 0.0;
+
+        // Compute sums that are used by the map method
+        for (int i = 0; i < values.length; i++) {
+            double value = values[i];
+            double weight = weights[i];
+
+            sumValues += value * weight;
+            sumWeights += weight;
+            sumWeightSquares += weight * Math.pow(value, 2);
+            sumWeightCubes += weight * Math.pow(value, 3);
+        }
+
         Struct aggregate = new Struct(STRUCT_SCHEMA)
-                .put(SUM_VALUES, 15.0)
-                .put(SUM_WEIGHTS, 5.0)
-                .put(SUM_WEIGHT_SQUARES, 55.0)
-                .put(SUM_WEIGHT_CUBES, 225.0);
+                .put(SUM_VALUES, sumValues)
+                .put(SUM_WEIGHTS, sumWeights)
+                .put(SUM_WEIGHT_SQUARES, sumWeightSquares)
+                .put(SUM_WEIGHT_CUBES, sumWeightCubes);
 
-        Double skewness = udafImpl.map(aggregate);
+        Double skewness = udafImpl.map(aggregate);    
 
-        double mean = 15.0 / 5.0;
-        double variance = (55.0 / 5.0) - Math.pow(mean, 2);
-        double expectedSkewness = ((225.0 / 5.0) - 3 * mean * (55.0 / 5.0) + 2 * Math.pow(mean, 3))
-                / Math.pow(Math.max(variance, 0.0), 1.5);
-
-        assertEquals(expectedSkewness, skewness, 0.0001);
+        assertEquals(0.075718, skewness, 0.0001);
     }
 
     /**

@@ -1,6 +1,8 @@
 package com.kcharkseliani.kafka.ksql.statistics;
 
 import io.confluent.ksql.function.udaf.Udaf;
+
+import org.apache.commons.math3.stat.descriptive.moment.Skewness;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -8,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.Arrays;
 
 /**
  * Unit tests for the {@link SkewnessUdaf} class.
@@ -98,20 +102,18 @@ public class SkewnessUdafTest {
     @Test
     void testMap_ValidData_ShouldReturnExpectedSkewness() {
 
+        // Using values for a known result
+        double[] values = { 3.0, 3.0, 4.0, 7.0, 7.0, 13.0, 16.0, 16.0, 16.0, 20.0 };
+
         Struct aggregate = new Struct(STRUCT_SCHEMA)
-            .put(COUNT, 5L)
-            .put(SUM, 60.0)
-            .put(SUM_SQUARES, 890.0)
-            .put(SUM_CUBES, 14700.0);
+                .put(COUNT, (long)values.length)
+                .put(SUM, Arrays.stream(values).sum())
+                .put(SUM_SQUARES, Arrays.stream(values).map(v -> v * v).sum())
+                .put(SUM_CUBES, Arrays.stream(values).map(v -> Math.pow(v, 3)).sum());
 
         Double result = udafImpl.map(aggregate);
 
-        double mean = 60.0 / 5;
-        double variance = (890.0 / 5) - Math.pow(mean, 2);
-        double m3 = (14700.0 / 5) - 3 * mean * (890.0 / 5) + 2 * Math.pow(mean, 3);
-        double expected = m3 / Math.pow(variance, 1.5);
-
-        assertEquals(expected, result, 0.0001);
+        assertEquals(0.075718, result, 0.0001);
     }
 
     /**
@@ -120,21 +122,23 @@ public class SkewnessUdafTest {
     @Test
     void testMap_WithSampleCorrection_ShouldReturnCorrectSampleSkewness() {
 
-        Struct aggregate = new Struct(STRUCT_SCHEMA)
-            .put(COUNT, 5L)
-            .put(SUM, 60.0)
-            .put(SUM_SQUARES, 890.0)
-            .put(SUM_CUBES, 14700.0);
+        // Using values for a known result
+        double[] values = { 3.0, 3.0, 4.0, 7.0, 7.0, 13.0, 16.0, 16.0, 16.0, 20.0 };
 
-        double count = 5;
-        double mean = 60.0 / count;
-        double variance = ((890.0 / count) - Math.pow(mean, 2)) * (count / (count - 1.0));
-        double m3 = (14700.0 / count) - 3 * mean * (890.0 / count) + 2 * Math.pow(mean, 3);
-        double expectedSkew = m3 / Math.pow(variance, 1.5) * 
-            (count * count) / ((count - 1.0) * (count - 2.0));
+        // Compute expected using Apache Commons Math;
+        // by default, bias correction (sample skewness) is applied
+        Skewness skewness = new Skewness();
+        double expected = skewness.evaluate(values);
+
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+                .put(COUNT, (long)values.length)
+                .put(SUM, Arrays.stream(values).sum())
+                .put(SUM_SQUARES, Arrays.stream(values).map(v -> v * v).sum())
+                .put(SUM_CUBES, Arrays.stream(values).map(v -> Math.pow(v, 3)).sum());
 
         double result = udafImplSample.map(aggregate);
-        assertEquals(expectedSkew, result, 0.0001);
+
+        assertEquals(expected, result, 0.0001);
     }
 
     /**

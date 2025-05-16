@@ -99,23 +99,36 @@ public class WeightedKurtosisUdafTest {
     @Test
     void testMap_ValidRecords_ShouldReturnExpectedKurtosis() {
 
-        Struct s = new Struct(STRUCT_SCHEMA)
-            .put(SUM_VALUES, 15.0)
-            .put(SUM_WEIGHTS, 5.0)
-            .put(SUM_WEIGHT_SQUARES, 55.0)
-            .put(SUM_WEIGHT_CUBES, 125.0)
-            .put(SUM_WEIGHT_QUARTIC, 979.0);
+        // Using values and weights for a known result
+        double[] values = { 3.0, 4.0, 7.0, 13.0, 16.0, 20.0 };
+        double[] weights = { 2.0, 1.0, 2.0, 1.0, 3.0, 1.0 };
 
-        double mean = 15.0 / 5.0;
-        double variance = (55.0 / 5.0) - mean * mean;
-        double m4 = (979.0 / 5.0)
-                  - 4 * mean * (125.0 / 5.0)
-                  + 6 * mean * mean * (55.0 / 5.0)
-                  - 3 * Math.pow(mean, 4);
+        double sumValues = 0.0;
+        double sumWeights = 0.0;
+        double sumWeightSquares = 0.0;
+        double sumWeightCubes = 0.0;
+        double sumWeightQuartic = 0.0;
 
-        double expected = m4 / (variance * variance);
+        // Compute sums that are used by the map method
+        for (int i = 0; i < values.length; i++) {
+            double value = values[i];
+            double weight = weights[i];
 
-        assertEquals(expected, udafImpl.map(s), 0.0001);
+            sumValues += value * weight;
+            sumWeights += weight;
+            sumWeightSquares += weight * Math.pow(value, 2);
+            sumWeightCubes += weight * Math.pow(value, 3);
+            sumWeightQuartic += weight * Math.pow(value, 4);
+        }
+
+        Struct aggregate = new Struct(STRUCT_SCHEMA)
+                .put(SUM_VALUES, sumValues)
+                .put(SUM_WEIGHTS, sumWeights)
+                .put(SUM_WEIGHT_SQUARES, sumWeightSquares)
+                .put(SUM_WEIGHT_CUBES, sumWeightCubes)
+                .put(SUM_WEIGHT_QUARTIC, sumWeightQuartic);
+
+        assertEquals(1.4400, udafImpl.map(aggregate), 0.0001);
     }
 
     /**
