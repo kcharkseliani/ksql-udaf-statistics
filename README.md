@@ -4,8 +4,12 @@ A collection of custom **ksqlDB User-Defined Aggregate Functions (UDAFs)** that 
 
 ## Features
 
-- Implements `STDDEV_WEIGHTED` and `SKEWNESS_WEIGHTED` UDAFs.
-- Supports weighted aggregation on streaming values using ksqlDB.
+- Adds the following UDAFs:
+  - `STDDEV_WEIGHTED`
+  - `SKEWNESS`
+  - `SKEWNESS_WEIGHTED`
+  - `KURTOSIS`
+  - `KURTOSIS_WEIGHTED`
 - Designed to work with `ksqldb-server` via UDF extensions.
 - Includes unit tests and integration tests using Testcontainers.
 - Compatible with ksqlDB 0.29.0 and Kafka 7.8.0.
@@ -15,7 +19,9 @@ A collection of custom **ksqlDB User-Defined Aggregate Functions (UDAFs)** that 
 - Calculate real-time statistical metrics (beyond those available in ksqlDB) over event streams (e.g., financial data, telemetry).
 
 ## Quickstart
-
+<details open>
+<summary><em>Setup and Usage Guide</em></summary> 
+  
 ### 1. Install Gradle
 This project was built using Gradle 8.11.1. Please ensure that Gradle is installed on your system before proceeding.
 You can verify your installation with:
@@ -24,7 +30,7 @@ gradle --version
 ```
 > **Note:** This project does not include a Gradle wrapper (```gradlew```). You must install Gradle manually.
 
-### 1. Build the UDAF Extension JAR
+### 2. Build the UDAF Extension JAR
 
 ```
 gradle shadowJar
@@ -36,7 +42,7 @@ This builds the uber-JAR including all required dependencies and places it at:
 extensions/ksql-udaf-statistics-<version>.jar
 ```
 
-### 2. Run With ksqlDB
+### 3. Run With ksqlDB
 
 Mount the generated JAR as an extension in ksqlDB:
 
@@ -48,7 +54,7 @@ docker run -it --rm \
   confluentinc/ksqldb-server:0.29.0
 ```
 
-### 3. Use in ksqlDB
+### 4. Use in ksqlDB
 
 ```sql
 -- Create a stream
@@ -84,6 +90,7 @@ WINDOW TUMBLING (SIZE 5 MINUTES)
 GROUP BY 'singleton';
 ```
 > **Note:** ```'singleton'``` is used as a constant key to satisfy the ```GROUP BY``` requirement for tables in ksqlDB. You can replace it with an actual column name if grouping by real data fields.
+</details>
 
 ## Development
 
