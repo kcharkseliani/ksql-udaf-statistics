@@ -18,9 +18,90 @@ A collection of custom **ksqlDB User-Defined Aggregate Functions (UDAFs)** that 
 
 - Calculate real-time statistical metrics (beyond those available in ksqlDB) over event streams (e.g., financial data, telemetry).
 
+## Function Reference
+<details>
+<summary><em>This section provides reference documentation for the custom UDAFs included in this project.</em></summary>
+
+### STDDEV_WEIGHTED
+
+**Description**: Computes the **weighted population standard deviation** using value-weight pairs.
+
+**Signature**:
+```
+STDDEV_WEIGHTED(valueColumn DOUBLE, weightColumn DOUBLE) -> DOUBLE
+```
+
+**Notes**:
+- Returns `0.0` if all weights are zero.
+
+---
+
+### SKEWNESS
+
+**Description**: Computes the **skewness** of a set of values.
+
+**Signatures**:
+```
+SKEWNESS(valueColumn DOUBLE) -> DOUBLE
+SKEWNESS(valueColumn DOUBLE, isSample BOOLEAN) -> DOUBLE
+```
+
+**Notes**:
+- If `isSample=true`, applies Bessel’s correction (sample skewness).
+- Returns `NaN` for sample skewness if count < 3.
+- Returns `0.0` if variance is zero.
+
+---
+
+### SKEWNESS_WEIGHTED
+
+**Description**: Computes **weighted population skewness** using value-weight pairs.
+
+**Signature**:
+```
+SKEWNESS_WEIGHTED(valueColumn DOUBLE, weightColumn DOUBLE) -> DOUBLE
+```
+
+**Notes**:
+- Returns `0.0` if all weights are zero or if variance is zero.
+
+---
+
+### KURTOSIS
+
+**Description**: Computes the **kurtosis** of a set of values.
+
+**Signatures**:
+```
+KURTOSIS(valueColumn DOUBLE) -> DOUBLE
+KURTOSIS(valueColumn DOUBLE, isSample BOOLEAN) -> DOUBLE
+```
+
+**Notes**:
+- If `isSample=true`, applies bias correction (sample kurtosis).
+- Returns `NaN` for sample kurtosis if count < 4.
+- Returns `0.0` if variance is zero.
+
+---
+
+### KURTOSIS_WEIGHTED
+
+**Description**: Computes **weighted population kurtosis** using value-weight pairs.
+
+**Signature**:
+```
+KURTOSIS_WEIGHTED(valueColumn DOUBLE, weightColumn DOUBLE) -> DOUBLE
+```
+
+**Notes**:
+- Returns `0.0` if all weights are zero or if variance is zero.
+</details>
+
+---
+
 ## Quickstart
 <details open>
-<summary><em>Setup and Usage Guide</em></summary> 
+<summary><em>This section provides a quick setup and usage guide.</em></summary> 
   
 ### 1. Install Gradle
 This project was built using Gradle 8.11.1. Please ensure that Gradle is installed on your system before proceeding.
@@ -128,17 +209,10 @@ gradle integrationTest
 
 > **Note:** The latest uber-JAR must be built using ```shadowJar``` before running integration tests.
 
-## Project Structure
-
-- `WeightedStdDevUdaf`: UDAF for weighted standard deviation.
-- `WeightedSkewnessUdaf`: UDAF for weighted skewness.
-- `AllUdafIT`: Integration test validating UDAF behavior with real ksqlDB and Kafka.
-- `WeightedStdDevUdafTest` / `WeightedSkewnessUdafTest`: Unit tests for aggregation logic.
-- `UdafMetadata`: Utility to extract registered UDAF function names via annotations.
-
 ## Publishing
 
 Release artifacts are automatically created by the GitHub Actions pipeline:
+- All UDAF version strings in code (class annotations) are replaced with the version from GitVersion
 - A release JAR is built using Gradle (```shadowJar```) and placed in ```extensions/```.
 - The pipeline uploads this JAR to a **GitHub Release**, tagged with the current version.
 - Draft releases are created as stable for the main branch, and as prerelease for other branches.
