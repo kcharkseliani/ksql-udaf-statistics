@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Konstantin Charkseliani
+
 package com.kcharkseliani.kafka.ksql.statistics.util;
 
 import io.confluent.ksql.function.udaf.UdafDescription;
