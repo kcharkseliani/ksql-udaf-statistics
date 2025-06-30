@@ -1,0 +1,147 @@
+plugins {
+    id "java"
+    id "com.github.johnrengelman.shadow" version "8.1.1"
+}
+
+version = project.hasProperty("buildVersion") ? project.buildVersion : "local-dev"
+
+repositories {
+    mavenCentral()
+
+    maven {
+        url "https://packages.confluent.io/maven"
+    }
+}
+
+dependencies {
+    // Core ksqlDB UDAF and Kafka dependencies
+    compileOnly "io.confluent.ksql:ksqldb-udf:7.3.1"
+    implementation "io.confluent.ksql:ksqldb-common:7.3.1"
+    compileOnly "org.apache.kafka:kafka_2.13:3.3.1"
+
+    // JUnit 5 (Jupiter) for unit testing
+    testImplementation "org.junit.jupiter:junit-jupiter-api:5.9.2"
+    testImplementation "org.junit.jupiter:junit-jupiter-engine:5.9.2"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.9.2"
+
+    // Mockito for mocking dependencies in tests
+    testImplementation "org.mockito:mockito-core:5.14.0"
+    
+    // Testcontainers for integration testing (core, kafka-specific and JUnit Jupiter integration)
+    testImplementation "org.testcontainers:testcontainers:1.19.1"
+    testImplementation "org.testcontainers:kafka:1.19.1"
+    testImplementation "org.testcontainers:junit-jupiter:1.19.1"
+    
+    // Reflection for integration testing to get UDAF names from class annotations
+    testImplementation "org.reflections:reflections:0.10.2"
+
+    // For validating results where the function is readily available
+    testImplementation "org.apache.commons:commons-math3:3.6.1"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+}
+
+shadowJar {
+    archiveBaseName = "ksql-udaf-statistics"
+    archiveClassifier = ""
+    destinationDirectory = file("extensions")
+}
+
+compileJava {
+    options.compilerArgs << "-parameters"
+}
+
+test {
+    // Enables JUnit 5 testing
+    useJUnitPlatform()
+    exclude '**/*IT.class' // Don't run integration tests here
+
+    testLogging {
+        showStandardStreams = true
+        events "passed", "skipped", "failed", "standard_out", "standard_error"
+    }
+}
+
+tasks.named('shadowJar') {
+    mustRunAfter check
+}
+
+task integrationTest(type: Test) {
+    description = "Runs integration tests"
+    group = "verification"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*IT.class' // Only run files like AllUdaIT
+    mustRunAfter shadowJar
+    useJUnitPlatform()
+
+    testLogging {
+        showStandardStreams = true
+        events "passed", "skipped", "failed", "standard_out", "standard_error"
+    }
+}
+
+task verify {
+    group = "verification"
+    description = "Runs unit tests, builds the uber-JAR, and then runs integration tests"
+    dependsOn 'check', 'shadowJar', 'integrationTest'
+}
+
+/**
+    Scans Java source files for @UdafDescription annotations and replaces the version 
+    string inside them with the current project version. 
+    Useful when injecting dynamic versions from CI/CD pipelines
+ */
+task replaceUdafVersions {
+    group = "build"
+    description = "Replaces version values in @UdafDescription annotations with project version"
+
+    doLast {
+
+        // Use the resolved project version (set via -PbuildVersion or defaulted)
+        def versionToInject = project.version
+
+        // Target the main Java source folder
+        def srcDir = file("src/main/java")
+
+        // Recursively walk all files under src/main/java
+        srcDir.eachFileRecurse(groovy.io.FileType.FILES) { file ->
+            if (!file.name.endsWith(".java")) return
+
+            // Track whether we're inside a @UdafDescription annotation block
+            def insideAnnotation = false
+            def modifiedLines = []
+
+            // Process each line in the file
+            file.eachLine { line ->
+                if (line.contains("@UdafDescription")) {
+                    insideAnnotation = true
+                    modifiedLines << line
+                } else if (insideAnnotation) {
+                    // Check if we're exiting the annotation block
+                    if (line.contains(")")) {
+                        insideAnnotation = false
+                    }
+                    // Replace only the version assignment
+                    def modified = line.replaceAll(
+                        /\bversion\s*=\s*"[^"]*"/,
+                        "version = \"${versionToInject}\""
+                    )
+                    modifiedLines << modified
+                } else {
+                    // Not inside annotation, keep line as-is
+                    modifiedLines << line
+                }
+            }
+
+            // Overwrite the original file with modified lines
+            file.text = modifiedLines.join(System.lineSeparator())
+        }
+
+        println "Updated UDAF annotation versions to: $versionToInject"
+    }
+}

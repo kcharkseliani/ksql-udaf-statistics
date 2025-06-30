@@ -37,32 +37,42 @@ jobs:
     - name: Install GitVersion
       uses: gittools/actions/gitversion/setup@v3.0.3
       with:
-        versionSpec: '6.x'
+        versionSpec: '6.0.5'
 
-    # Step 4: Run GitVersion to determine the version
-    - name: Determine version with GitVersion
-      id: gitversion
+    # Step 4: Run GitVersion to determine the majorMinorPatch, then tag if the branch is `main`
+    - name: Get majorMinorPatch version with GitVersion before tagging on main
+      if: github.ref == 'refs/heads/main'
+      id: gitversion_main
       uses: gittools/actions/gitversion/execute@v3.0.3
 
-    # Step 5: Tag immediately if the branch is `main`
     - name: Tag main branch immediately
       if: github.ref == 'refs/heads/main'
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
-        git tag -a ${{ steps.gitversion.outputs.majorMinorPatch }} -m "Stable Release ${{ steps.gitversion.outputs.majorMinorPatch }}"
-        git push origin ${{ steps.gitversion.outputs.majorMinorPatch }}
+        git tag -a ${{ steps.gitversion_main.outputs.majorMinorPatch }} -m "Stable Release ${{ steps.gitversion_main.outputs.majorMinorPatch }}"
+        git push origin ${{ steps.gitversion_main.outputs.majorMinorPatch }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Step 6: Set version and build the project using shadowJar
+    # Step 5: Run GitVersion to determine version (updated after tagging if first got version with main from Step 4)
+    - name: Determine version with GitVersion
+      uses: gittools/actions/gitversion/execute@v3.0.3
+      id: gitversion
+
+    # Step 6: Replace all UDAF version strings in class annotations with git version
     - name: Display Version
       run: echo "Version ${{ steps.gitversion.outputs.semVer }}"
 
-    - name: Build shadowJar with version
-      run: gradle shadowJar -PbuildVersion="'${{ steps.gitversion.outputs.semVer }}'"
+    - name: Inject version into UDAF annotations
+      run: gradle replaceUdafVersions -PbuildVersion='${{ steps.gitversion.outputs.semVer }}'
 
-    # Step 7: Tag the commit with the version
+    # Step 7: Set project version, Run unit tests, build the project using shadowJar,
+    #   and run integration tests (fails the pipeline if Docker is not available or tests fail)
+    - name: Verify build and run all tests
+      run: gradle verify -PbuildVersion='${{ steps.gitversion.outputs.semVer }}'
+
+    # Step 8: Tag the commit with the version
     - name: Tag the commit with version
       if: startsWith(github.ref, 'refs/heads/release/')
       run: |
@@ -74,7 +84,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
-    # Step 8: Upload build artifact as a release
+    # Step 9: Upload build artifact as a release
     - name: Create a GitHub release
       id: create_release
       uses: actions/create-release@v1
